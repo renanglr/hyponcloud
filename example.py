@@ -26,8 +26,8 @@ async def main() -> None:
         sys.exit(1)
 
     try:
-        # Create client using context manager
-        async with HyponCloud(username, password) as client:
+        # Create client using context manager with debug mode enabled
+        async with HyponCloud(username, password, debug=True) as client:
             print("Connecting to Hypontech Cloud...")
 
             # Authenticate

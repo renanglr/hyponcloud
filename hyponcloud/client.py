@@ -1,6 +1,7 @@
 """Hypontech Cloud API client."""
 
 import asyncio
+import json
 import logging
 from time import time
 from typing import Any
@@ -23,6 +24,7 @@ class HyponCloud:
         session: aiohttp.ClientSession | None = None,
         timeout: int = 10,
         retries: int = 3,
+        debug: bool = False,
     ) -> None:
         """Initialize the HyponCloud class.
 
@@ -33,11 +35,13 @@ class HyponCloud:
                 one will be created.
             timeout: Request timeout in seconds. Defaults to 10.
             retries: Number of retry attempts for API requests. Defaults to 3.
+            debug: Enable debug mode to print raw HTTP responses. Defaults to False.
         """
         self.base_url = "https://api.hypon.cloud/v2"
         self.token_validity = 3600
         self.timeout = aiohttp.ClientTimeout(total=timeout)
         self.retries = retries
+        self.debug = debug
 
         self._session = session
         self._own_session = session is None
@@ -83,6 +87,17 @@ class HyponCloud:
             async with self._session.post(
                 url, json=data, timeout=self.timeout
             ) as response:
+                if self.debug:
+                    print(f"\n=== POST {url} ===")
+                    print(f"Status: {response.status}")
+                    print(f"Headers: {dict(response.headers)}")
+                    raw_text = await response.text()
+                    print(f"Response: {raw_text}")
+                    # Re-parse the text since we already read it
+                    result = json.loads(raw_text)
+                else:
+                    result = await response.json()
+
                 if response.status == 401:
                     raise AuthenticationError("Invalid credentials")
                 if response.status == 429:
@@ -94,7 +109,6 @@ class HyponCloud:
                         f"Connection failed with status {response.status}"
                     )
 
-                result = await response.json()
                 self.__token = result["data"]["token"]
                 self.__token_expires_at = int(time()) + self.token_validity
         except aiohttp.ClientError as e:
@@ -130,6 +144,17 @@ class HyponCloud:
             async with self._session.get(
                 url, headers=headers, timeout=self.timeout
             ) as response:
+                if self.debug:
+                    print(f"\n=== GET {url} ===")
+                    print(f"Status: {response.status}")
+                    print(f"Headers: {dict(response.headers)}")
+                    raw_text = await response.text()
+                    print(f"Response: {raw_text}")
+                    # Re-parse the text since we already read it
+                    result = json.loads(raw_text)
+                else:
+                    result = await response.json()
+
                 if response.status == 429:
                     if retries > 0:
                         await asyncio.sleep(10)
@@ -144,7 +169,6 @@ class HyponCloud:
                         f"Failed to get plant overview: HTTP {response.status}"
                     )
 
-                result = await response.json()
                 data = result["data"]
                 return OverviewData.from_dict(data)
         except KeyError as e:
@@ -182,6 +206,17 @@ class HyponCloud:
             async with self._session.get(
                 url, headers=headers, timeout=self.timeout
             ) as response:
+                if self.debug:
+                    print(f"\n=== GET {url} ===")
+                    print(f"Status: {response.status}")
+                    print(f"Headers: {dict(response.headers)}")
+                    raw_text = await response.text()
+                    print(f"Response: {raw_text}")
+                    # Re-parse the text since we already read it
+                    result = json.loads(raw_text)
+                else:
+                    result = await response.json()
+
                 if response.status == 429:
                     if retries > 0:
                         await asyncio.sleep(10)
@@ -193,7 +228,6 @@ class HyponCloud:
                         await asyncio.sleep(10)
                         return await self.get_list(retries - 1)
 
-                result = await response.json()
                 data_list = result["data"]
                 return [PlantData.from_dict(item) for item in data_list]
         except Exception as e:
@@ -239,6 +273,17 @@ class HyponCloud:
                 async with self._session.get(
                     url, headers=headers, timeout=self.timeout
                 ) as response:
+                    if self.debug:
+                        print(f"\n=== GET {url} ===")
+                        print(f"Status: {response.status}")
+                        print(f"Headers: {dict(response.headers)}")
+                        raw_text = await response.text()
+                        print(f"Response: {raw_text}")
+                        # Re-parse the text since we already read it
+                        result = json.loads(raw_text)
+                    else:
+                        result = await response.json()
+
                     if response.status == 429:
                         if retries > 0:
                             await asyncio.sleep(10)
@@ -255,7 +300,6 @@ class HyponCloud:
                             f"Failed to get inverter list: HTTP {response.status}"
                         )
 
-                    result = await response.json()
                     data_list = result["data"]
 
                     # Update total pages from response
@@ -304,6 +348,17 @@ class HyponCloud:
             async with self._session.get(
                 url, headers=headers, timeout=self.timeout
             ) as response:
+                if self.debug:
+                    print(f"\n=== GET {url} ===")
+                    print(f"Status: {response.status}")
+                    print(f"Headers: {dict(response.headers)}")
+                    raw_text = await response.text()
+                    print(f"Response: {raw_text}")
+                    # Re-parse the text since we already read it
+                    result = json.loads(raw_text)
+                else:
+                    result = await response.json()
+
                 if response.status == 429:
                     if retries > 0:
                         await asyncio.sleep(10)
@@ -318,7 +373,6 @@ class HyponCloud:
                         f"Failed to get admin info: HTTP {response.status}"
                     )
 
-                result = await response.json()
                 data = result["data"]
                 # Flatten nested "info" object into the main data dict
                 if "info" in data and isinstance(data["info"], dict):

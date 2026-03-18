@@ -141,7 +141,7 @@ Main client class for interacting with the Hypontech Cloud API.
 
 #### Methods
 
-##### `__init__(username: str, password: str, session: aiohttp.ClientSession | None = None, timeout: int = 10, retries: int = 3)`
+##### `__init__(username: str, password: str, session: aiohttp.ClientSession | None = None, timeout: int = 10, retries: int = 3, debug: bool = False)`
 
 Initialize the client.
 
@@ -150,6 +150,7 @@ Initialize the client.
 - `session`: Optional aiohttp ClientSession. If not provided, one will be created automatically.
 - `timeout`: Request timeout in seconds (default: 10)
 - `retries`: Number of retry attempts for API requests (default: 3)
+- `debug`: Enable debug mode to print raw HTTP responses (default: False)
 
 ##### `async connect() -> None`
 
@@ -248,6 +249,7 @@ Data class containing individual plant information.
 #### Attributes
 
 - `city` (str): Plant location city
+- `company` (str): Power unit (e.g., "W")
 - `country` (str): Plant location country
 - `e_today` (float): Today's energy production
 - `e_total` (float): Total energy production
@@ -274,6 +276,9 @@ Data class containing inverter information.
 - `software_version` (str): Software version
 - `lcd_version` (str): LCD version
 - `afci_version` (str): AFCI version
+- `afci_version0` (str): AFCI version channel 0
+- `afci_version1` (str): AFCI version channel 1
+- `afci_version2` (str): AFCI version channel 2
 - `time` (str): Last update time
 - `spn` (str): SPN identifier
 - `power` (int): Current power output in watts
@@ -299,22 +304,40 @@ Data class containing administrator account information.
 #### Attributes
 
 - `parent_name` (str): Parent account name
-- `role` (list[str]): User roles
 - `parent_id` (str): Parent account ID
+- `role` (list[str] | None): User roles
 - `has_lower_level` (bool): Whether account has lower level access
-- `email` (str): User email address
+- `id` (str): User ID
+- `eid` (int): Equipment ID
 - `username` (str): Username
+- `login_name` (str): Login name
+- `email` (str): User email address
 - `first_name` (str): First name
 - `last_name` (str): Last name
+- `company` (str): Company name
 - `country` (str): Country
 - `city` (str): City
+- `address` (str): Address line 1
+- `address2` (str): Address line 2
+- `postal_code` (str): Postal code
+- `mobile` (str): Mobile phone number
+- `mobile_prefix_code` (str): Mobile country prefix code
+- `city_mobile_code` (str): City mobile code
+- `country_mobile_code` (str): Country mobile code
 - `language` (str): Language preference
 - `currency` (str): Currency preference
 - `timezone` (str): Timezone
+- `photo` (str): Profile photo URL
 - `last_login_time` (str): Last login timestamp
 - `last_login_ip` (str): Last login IP address
-- `id` (str): User ID
-- And many other user profile fields
+- `created_at` (str): Account creation timestamp
+- `deleted_at` (str): Account deletion timestamp
+- `manufacturer` (int): Manufacturer flag
+- `switch_warning` (int): Switch warning flag
+- `is_internal` (int): Internal account flag
+- `status` (int): Account status
+- `first_login` (bool): Whether this is the first login
+- `token` (str): Session token
 
 ### Exceptions
 

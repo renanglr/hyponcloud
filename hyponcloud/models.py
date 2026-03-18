@@ -56,6 +56,7 @@ class PlantData(DataClassDictMixin):
     plant_name: str = ""
     plant_type: str = ""
     power: int = 0
+    company: str = "W"
     status: str = ""
 
     class Config(BaseConfig):

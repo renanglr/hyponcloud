@@ -69,17 +69,18 @@ async def main() -> None:
                 # Table header
                 print(
                     f"{'Name':<20} {'Location':<25} {'Status':<10} "
-                    f"{'Power':<10} {'Today':<10} {'Total':<10}"
+                    f"{'Power':<15} {'Today':<10} {'Total':<10}"
                 )
-                print("-" * 95)
+                print("-" * 100)
                 # Table rows
                 for plant in plants:
                     location = f"{plant.city}, {plant.country}"
+                    power_str = f"{plant.power} {plant.company}"
                     print(
                         f"{plant.plant_name:<20} "
                         f"{location:<25} "
                         f"{plant.status:<10} "
-                        f"{plant.power:<10} "
+                        f"{power_str:<15} "
                         f"{plant.e_today:<10.2f} "
                         f"{plant.e_total:<10.2f}"
                     )

@@ -17,7 +17,7 @@ class OverviewData(DataClassDictMixin):
 
     capacity: float = 0.0
     capacity_company: str = "KW"
-    power: int = 0
+    power: float = 0.0
     company: str = "W"
     percent: int = 0
     e_today: float = 0.0
@@ -55,7 +55,7 @@ class PlantData(DataClassDictMixin):
     plant_id: str = ""
     plant_name: str = ""
     plant_type: str = ""
-    power: int = 0
+    power: float = 0.0
     company: str = "W"
     status: str = ""
 

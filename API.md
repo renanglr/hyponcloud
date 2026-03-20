@@ -95,7 +95,7 @@ Data class containing plant overview information.
 
 - `capacity` (float): Plant capacity
 - `capacity_company` (str): Capacity unit (e.g., "KW")
-- `power` (int): Current power generation in watts
+- `power` (float): Current power generation in watts
 - `company` (str): Power unit (e.g., "W")
 - `percent` (int): Percentage value
 - `e_today` (float): Today's energy production in kWh
@@ -104,8 +104,9 @@ Data class containing plant overview information.
 - `normal_dev_num` (int): Number of normal devices
 - `offline_dev_num` (int): Number of offline devices
 - `wait_dev_num` (int): Number of devices waiting
-- `total_co2` (int): Total CO2 savings
+- `total_co2` (float): Total CO2 savings in tons
 - `total_tree` (float): Equivalent trees planted
+- `earning` (list[EarningData]): Earnings per currency
 
 ## PlantData
 
@@ -114,7 +115,7 @@ Data class containing individual plant information.
 ### Attributes
 
 - `city` (str): Plant location city
-- `company` (str): Power unit (e.g., "W")
+- `company` (str): Power unit (always "W" for `PlantData`, this is added to keep it in sync with `OverviewData`)
 - `country` (str): Plant location country
 - `e_today` (float): Today's energy production
 - `e_total` (float): Total energy production
@@ -124,8 +125,14 @@ Data class containing individual plant information.
 - `plant_id` (str): Unique plant identifier
 - `plant_name` (str): Plant name
 - `plant_type` (str): Plant type
-- `power` (int): Current power
+- `power` (float): Current power
 - `status` (str): Plant status
+- `time` (str): Last update time
+- `photo` (str): Plant photo URL
+- `owner_name` (str): Owner username
+- `owner_id` (str): Owner account ID
+- `top` (int): Top flag
+- `property` (int): Property value
 
 ## InverterData
 
@@ -146,7 +153,7 @@ Data class containing inverter information.
 - `afci_version2` (str): AFCI version channel 2
 - `time` (str): Last update time
 - `spn` (str): SPN identifier
-- `power` (int): Current power output in watts
+- `power` (float): Current power output in watts
 - `eid` (str): Equipment ID
 - `device_type` (str): Device type
 - `fault` (int): Fault status
@@ -161,6 +168,44 @@ Data class containing inverter information.
 - `third_active_power` (int): Third party active power
 - `third_meter_energy` (int): Third party meter energy
 - `today_generation_third` (int): Today's generation from third party
+- `warning` (int): Warning status
+- `gateway` (GatewayData | None): Gateway device info
+- `port` (list[PortData]): Port configurations
+
+## EarningData
+
+Data class containing earnings information per currency.
+
+### Attributes
+
+- `currency` (str): Currency code (e.g., "EUR")
+- `today` (float): Today's earnings
+- `total` (float): Total earnings
+
+## GatewayData
+
+Data class containing gateway device information.
+
+### Attributes
+
+- `sn` (str): Serial number
+- `model` (str): Gateway model
+- `status` (str): Gateway status
+- `time` (str): Last update time
+- `push_time` (int): Push interval in seconds
+- `pid` (str): PID
+
+## PortData
+
+Data class containing inverter port information.
+
+### Attributes
+
+- `sn` (str): Serial number
+- `id` (str): Port ID
+- `x` (int): X coordinate
+- `y` (int): Y coordinate
+- `port` (int): Port number
 
 ## AdminInfo
 

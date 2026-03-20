@@ -58,7 +58,7 @@ async def main() -> None:
             print("\n=== Environmental Impact ===")
             print(f"{'Metric':<25} {'Value':<20}")
             print("-" * 45)
-            print(f"{'Total CO2 Saved':<25} {overview.total_co2} kg")
+            print(f"{'Total CO2 Saved':<25} {overview.total_co2} tons")
             print(f"{'Equivalent Trees':<25} {overview.total_tree:.1f}")
 
             # Get plant list

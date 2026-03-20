@@ -1,9 +1,59 @@
 """Data models for Hypontech Cloud API."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from mashumaro import DataClassDictMixin
 from mashumaro.config import BaseConfig
+
+
+@dataclass
+class EarningData(DataClassDictMixin):
+    """Earning data for a plant."""
+
+    currency: str = ""
+    today: float = 0.0
+    total: float = 0.0
+
+    class Config(BaseConfig):
+        """Mashumaro configuration."""
+
+        omit_none = True
+        allow_deserialization_not_by_alias = True
+
+
+@dataclass
+class GatewayData(DataClassDictMixin):
+    """Gateway device data for an inverter."""
+
+    sn: str = ""
+    model: str = ""
+    status: str = ""
+    time: str = ""
+    push_time: int = 0
+    pid: str = ""
+
+    class Config(BaseConfig):
+        """Mashumaro configuration."""
+
+        omit_none = True
+        allow_deserialization_not_by_alias = True
+
+
+@dataclass
+class PortData(DataClassDictMixin):
+    """Port data for an inverter."""
+
+    sn: str = ""
+    id: str = ""
+    x: int = -1
+    y: int = -1
+    port: int = 0
+
+    class Config(BaseConfig):
+        """Mashumaro configuration."""
+
+        omit_none = True
+        allow_deserialization_not_by_alias = True
 
 
 @dataclass
@@ -26,8 +76,9 @@ class OverviewData(DataClassDictMixin):
     normal_dev_num: int = 0
     offline_dev_num: int = 0
     wait_dev_num: int = 0
-    total_co2: int = 0
+    total_co2: float = 0.0
     total_tree: float = 0.0
+    earning: list[EarningData] = field(default_factory=list)
 
     class Config(BaseConfig):
         """Mashumaro configuration."""
@@ -58,6 +109,12 @@ class PlantData(DataClassDictMixin):
     power: float = 0.0
     company: str = "W"
     status: str = ""
+    time: str = ""
+    photo: str = ""
+    owner_name: str = ""
+    owner_id: str = ""
+    top: int = 0
+    property: int = 0
 
     class Config(BaseConfig):
         """Mashumaro configuration."""
@@ -88,10 +145,11 @@ class InverterData(DataClassDictMixin):
     afci_version2: str = ""
     time: str = ""
     spn: str = ""
-    power: int = 0
+    power: float = 0.0
     eid: str = ""
     device_type: str = ""
     fault: int = 0
+    warning: int = 0
     plant_id: str = ""
     modbus: int = 0
     e_total: float = 0.0
@@ -103,6 +161,8 @@ class InverterData(DataClassDictMixin):
     third_active_power: int = 0
     third_meter_energy: int = 0
     today_generation_third: int = 0
+    gateway: GatewayData | None = None
+    port: list[PortData] = field(default_factory=list)
 
     class Config(BaseConfig):
         """Mashumaro configuration."""

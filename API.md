@@ -1,0 +1,212 @@
+# API Reference
+
+## HyponCloud
+
+Main client class for interacting with the Hypontech Cloud API.
+
+### Methods
+
+#### `__init__(username: str, password: str, session: aiohttp.ClientSession | None = None, timeout: int = 10, retries: int = 3, debug: bool = False)`
+
+Initialize the client.
+
+- `username`: Your Hypontech Cloud username
+- `password`: Your Hypontech Cloud password
+- `session`: Optional aiohttp ClientSession. If not provided, one will be created automatically.
+- `timeout`: Request timeout in seconds (default: 10)
+- `retries`: Number of retry attempts for API requests (default: 3)
+- `debug`: Enable debug mode to print raw HTTP responses (default: False)
+
+#### `async connect() -> None`
+
+Authenticate with the API and retrieve access token.
+
+**Raises:**
+- `AuthenticationError`: Invalid credentials (HTTP 401)
+- `RequestError`: Request failed (network error or server error HTTP 500+)
+- `RateLimitError`: Too many requests (HTTP 429)
+
+#### `async get_overview(retries: int | None = None) -> OverviewData`
+
+Get plant overview data including power generation and device status.
+
+**Parameters:**
+- `retries`: Number of retry attempts on failure. If None, uses the client's default retry setting
+
+**Returns:** `OverviewData` object
+
+**Raises:**
+- `AuthenticationError`: Authentication required
+- `RequestError`: Request failed
+- `RateLimitError`: Too many requests
+
+#### `async get_list(retries: int | None = None) -> list[PlantData]`
+
+Get list of plants associated with the account.
+
+**Parameters:**
+- `retries`: Number of retry attempts on failure. If None, uses the client's default retry setting
+
+**Returns:** List of `PlantData` objects
+
+**Raises:**
+- `AuthenticationError`: Authentication required
+- `RequestError`: Request failed
+- `RateLimitError`: Too many requests
+
+#### `async get_inverters(plant_id: str, retries: int | None = None) -> list[InverterData]`
+
+Get all inverters for a specific plant. This method automatically fetches all pages of inverters.
+
+**Parameters:**
+- `plant_id`: The plant ID to get inverters for
+- `retries`: Number of retry attempts on failure. If None, uses the client's default retry setting
+
+**Returns:** List of `InverterData` objects
+
+**Raises:**
+- `AuthenticationError`: Authentication required
+- `RequestError`: Request failed
+- `RateLimitError`: Too many requests
+
+#### `async get_admin_info(retries: int | None = None) -> AdminInfo`
+
+Get administrator account information.
+
+**Parameters:**
+- `retries`: Number of retry attempts on failure. If None, uses the client's default retry setting
+
+**Returns:** `AdminInfo` object
+
+**Raises:**
+- `AuthenticationError`: Authentication required
+- `RequestError`: Request failed
+- `RateLimitError`: Too many requests
+
+#### `async close() -> None`
+
+Close the aiohttp session (only if created by the library).
+
+## OverviewData
+
+Data class containing plant overview information.
+
+### Attributes
+
+- `capacity` (float): Plant capacity
+- `capacity_company` (str): Capacity unit (e.g., "KW")
+- `power` (int): Current power generation in watts
+- `company` (str): Power unit (e.g., "W")
+- `percent` (int): Percentage value
+- `e_today` (float): Today's energy production in kWh
+- `e_total` (float): Total lifetime energy production in kWh
+- `fault_dev_num` (int): Number of faulty devices
+- `normal_dev_num` (int): Number of normal devices
+- `offline_dev_num` (int): Number of offline devices
+- `wait_dev_num` (int): Number of devices waiting
+- `total_co2` (int): Total CO2 savings
+- `total_tree` (float): Equivalent trees planted
+
+## PlantData
+
+Data class containing individual plant information.
+
+### Attributes
+
+- `city` (str): Plant location city
+- `company` (str): Power unit (e.g., "W")
+- `country` (str): Plant location country
+- `e_today` (float): Today's energy production
+- `e_total` (float): Total energy production
+- `eid` (int): Equipment ID
+- `kwhimp` (int): kWh import
+- `micro` (int): Micro inverter count
+- `plant_id` (str): Unique plant identifier
+- `plant_name` (str): Plant name
+- `plant_type` (str): Plant type
+- `power` (int): Current power
+- `status` (str): Plant status
+
+## InverterData
+
+Data class containing inverter information.
+
+### Attributes
+
+- `plant_name` (str): Plant name
+- `sn` (str): Serial number
+- `gateway_sn` (str): Gateway serial number
+- `status` (str): Inverter status
+- `model` (str): Inverter model
+- `software_version` (str): Software version
+- `lcd_version` (str): LCD version
+- `afci_version` (str): AFCI version
+- `afci_version0` (str): AFCI version channel 0
+- `afci_version1` (str): AFCI version channel 1
+- `afci_version2` (str): AFCI version channel 2
+- `time` (str): Last update time
+- `spn` (str): SPN identifier
+- `power` (int): Current power output in watts
+- `eid` (str): Equipment ID
+- `device_type` (str): Device type
+- `fault` (int): Fault status
+- `plant_id` (str): Plant ID
+- `modbus` (int): Modbus status
+- `e_total` (float): Total energy production in kWh
+- `e_today` (float): Today's energy production in kWh
+- `property` (int): Property value
+- `nick_name` (str): Nickname
+- `com` (int): Communication status
+- `system_connect_mode` (int): System connection mode
+- `third_active_power` (int): Third party active power
+- `third_meter_energy` (int): Third party meter energy
+- `today_generation_third` (int): Today's generation from third party
+
+## AdminInfo
+
+Data class containing administrator account information.
+
+### Attributes
+
+- `parent_name` (str): Parent account name
+- `parent_id` (str): Parent account ID
+- `role` (list[str] | None): User roles
+- `has_lower_level` (bool): Whether account has lower level access
+- `id` (str): User ID
+- `eid` (int): Equipment ID
+- `username` (str): Username
+- `login_name` (str): Login name
+- `email` (str): User email address
+- `first_name` (str): First name
+- `last_name` (str): Last name
+- `company` (str): Company name
+- `country` (str): Country
+- `city` (str): City
+- `address` (str): Address line 1
+- `address2` (str): Address line 2
+- `postal_code` (str): Postal code
+- `mobile` (str): Mobile phone number
+- `mobile_prefix_code` (str): Mobile country prefix code
+- `city_mobile_code` (str): City mobile code
+- `country_mobile_code` (str): Country mobile code
+- `language` (str): Language preference
+- `currency` (str): Currency preference
+- `timezone` (str): Timezone
+- `photo` (str): Profile photo URL
+- `last_login_time` (str): Last login timestamp
+- `last_login_ip` (str): Last login IP address
+- `created_at` (str): Account creation timestamp
+- `deleted_at` (str): Account deletion timestamp
+- `manufacturer` (int): Manufacturer flag
+- `switch_warning` (int): Switch warning flag
+- `is_internal` (int): Internal account flag
+- `status` (int): Account status
+- `first_login` (bool): Whether this is the first login
+- `token` (str): Session token
+
+## Exceptions
+
+- `HyponCloudError`: Base exception for all library errors
+- `AuthenticationError`: Authentication failed (invalid credentials)
+- `RequestError`: API request failed
+- `RateLimitError`: API rate limit exceeded

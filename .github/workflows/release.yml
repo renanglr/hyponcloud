@@ -17,7 +17,89 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Build release notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+
+          # Find the previous tag
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1)
+
+          if [ -z "$PREV_TAG" ]; then
+            COMMIT_SHAS=$(git log --pretty=format:"%H" HEAD)
+            PAST_SHAS=""
+          else
+            COMMIT_SHAS=$(git log --pretty=format:"%H" "${PREV_TAG}..${CURRENT_TAG}")
+            PAST_SHAS=$(git log --pretty=format:"%H" "${PREV_TAG}")
+          fi
+
+          # Resolve GitHub login for a SHA (falls back to git author name)
+          gh_login() {
+            local sha="$1"
+            local login
+            login=$(gh api "repos/${{ github.repository }}/commits/${sha}" --jq '.author.login // ""' 2>/dev/null)
+            if [ -z "$login" ]; then
+              git log -1 --pretty=format:"%an" "$sha"
+            else
+              echo "$login"
+            fi
+          }
+
+          # Build commit list and collect logins for this release
+          COMMITS_SECTION="## Commits"$'\n'
+          declare -A RELEASE_LOGINS
+          while IFS= read -r sha; do
+            [ -z "$sha" ] && continue
+            MSG=$(git log -1 --pretty=format:"%s" "$sha")
+            SHORT_SHA="${sha:0:7}"
+            LOGIN=$(gh_login "$sha")
+            COMMITS_SECTION+="- [\`${SHORT_SHA}\`](https://github.com/${{ github.repository }}/commit/${sha}) ${MSG}"$'\n'
+            RELEASE_LOGINS["$LOGIN"]=1
+          done <<< "$COMMIT_SHAS"
+
+          # Collect past logins to detect new contributors
+          declare -A PAST_LOGINS
+          while IFS= read -r sha; do
+            [ -z "$sha" ] && continue
+            LOGIN=$(gh_login "$sha")
+            PAST_LOGINS["$LOGIN"]=1
+          done <<< "$PAST_SHAS"
+
+          # Build contributors list
+          CONTRIBUTORS_SECTION="## Contributors"$'\n'
+          for login in "${!RELEASE_LOGINS[@]}"; do
+            CONTRIBUTORS_SECTION+="- [@${login}](https://github.com/${login})"$'\n'
+          done
+
+          # Build new contributors list (only if any)
+          NEW_CONTRIBUTORS_SECTION=""
+          NEW_COUNT=0
+          for login in "${!RELEASE_LOGINS[@]}"; do
+            if [ -z "${PAST_LOGINS[$login]+x}" ]; then
+              NEW_CONTRIBUTORS_SECTION+="- [@${login}](https://github.com/${login})"$'\n'
+              NEW_COUNT=$((NEW_COUNT + 1))
+            fi
+          done
+
+          if [ "$NEW_COUNT" -gt 0 ]; then
+            NEW_CONTRIBUTORS_SECTION="## Welcome New Contributors"$'\n'"${NEW_CONTRIBUTORS_SECTION}"
+          fi
+
+          # Write to file to avoid shell escaping issues
+          if [ "$NEW_COUNT" -gt 0 ]; then
+            printf '%s\n\n%s\n\n%s' \
+              "$COMMITS_SECTION" \
+              "$CONTRIBUTORS_SECTION" \
+              "$NEW_CONTRIBUTORS_SECTION" > /tmp/release_notes.md
+          else
+            printf '%s\n\n%s' \
+              "$COMMITS_SECTION" \
+              "$CONTRIBUTORS_SECTION" > /tmp/release_notes.md
+          fi
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: /tmp/release_notes.md

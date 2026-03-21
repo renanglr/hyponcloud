@@ -172,6 +172,41 @@ class InverterData(DataClassDictMixin):
 
 
 @dataclass
+class PlantMonitorData(DataClassDictMixin):
+    """Plant monitor data class.
+
+    This class represents the real-time monitoring data for a specific plant,
+    as returned by the plant monitor endpoint.
+    """
+
+    monetary: str = ""
+    today_earning: float = 0.0
+    month_earning: float = 0.0
+    total_earning: float = 0.0
+    e_today: float = 0.0
+    e_month: float = 0.0
+    e_total: float = 0.0
+    e_year: float = 0.0
+    total_tree: float = 0.0
+    total_co2: float = 0.0
+    total_diesel: float = 0.0
+    percent: int = 0
+    meter_power: float = 0.0
+    power_load: float = 0.0
+    w_cha: float = 0.0
+    power_pv: float = 0.0
+    soc: float = 0.0
+    micro: int = 0
+    warning: str = ""
+
+    class Config(BaseConfig):
+        """Mashumaro configuration."""
+
+        omit_none = True
+        allow_deserialization_not_by_alias = True
+
+
+@dataclass
 class AdminInfo(DataClassDictMixin):
     """Administrator information data class.
 

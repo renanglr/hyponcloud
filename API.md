@@ -69,6 +69,21 @@ Get all inverters for a specific plant. This method automatically fetches all pa
 - `RequestError`: Request failed
 - `RateLimitError`: Too many requests
 
+#### `async get_monitor(plant_id: str, retries: int | None = None) -> PlantMonitorData`
+
+Get real-time monitoring data for a specific plant.
+
+**Parameters:**
+- `plant_id`: The plant ID to get monitoring data for
+- `retries`: Number of retry attempts on failure. If None, uses the client's default retry setting
+
+**Returns:** `PlantMonitorData` object
+
+**Raises:**
+- `AuthenticationError`: Authentication required
+- `RequestError`: Request failed
+- `RateLimitError`: Too many requests
+
 #### `async get_admin_info(retries: int | None = None) -> AdminInfo`
 
 Get administrator account information.
@@ -171,6 +186,32 @@ Data class containing inverter information.
 - `warning` (int): Warning status
 - `gateway` (GatewayData | None): Gateway device info
 - `port` (list[PortData]): Port configurations
+
+## PlantMonitorData
+
+Data class containing real-time monitoring data for a specific plant.
+
+### Attributes
+
+- `monetary` (str): Currency code (e.g., "EUR")
+- `today_earning` (float): Today's earnings
+- `month_earning` (float): This month's earnings
+- `total_earning` (float): Total lifetime earnings
+- `e_today` (float): Today's energy production in kWh
+- `e_month` (float): This month's energy production in kWh
+- `e_year` (float): This year's energy production in kWh
+- `e_total` (float): Total lifetime energy production in kWh
+- `total_tree` (float): Equivalent trees planted
+- `total_co2` (float): Total CO2 savings in kg
+- `total_diesel` (float): Equivalent diesel saved in litres
+- `percent` (int): Performance percentage
+- `meter_power` (float): Grid power in watts
+- `power_load` (float): Load power in watts
+- `w_cha` (float): Charging power in watts
+- `power_pv` (float): PV power in watts
+- `soc` (float): Battery state of charge percentage
+- `micro` (int): Micro inverter flag
+- `warning` (str): Warning status
 
 ## EarningData
 

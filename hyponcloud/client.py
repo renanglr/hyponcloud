@@ -9,7 +9,7 @@ from typing import Any
 import aiohttp
 
 from .exceptions import AuthenticationError, RateLimitError, RequestError
-from .models import AdminInfo, InverterData, OverviewData, PlantData
+from .models import AdminInfo, InverterData, OverviewData, PlantData, PlantMonitorData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -321,6 +321,73 @@ class HyponCloud:
                 raise RequestError(f"Failed to get inverter list: {e}") from e
 
         return all_inverters
+
+    async def get_monitor(
+        self, plant_id: str, retries: int | None = None
+    ) -> PlantMonitorData:
+        """Get real-time monitoring data for a specific plant.
+
+        Args:
+            plant_id: The plant ID to get monitoring data for.
+            retries: Number of retry attempts if request fails. If None,
+                uses the client's default retry setting.
+
+        Returns:
+            PlantMonitorData object containing plant monitoring information.
+
+        Raises:
+            AuthenticationError: If authentication fails.
+            ConnectionError: If connection to API fails.
+        """
+        retries = retries if retries is not None else self.retries
+        await self.connect()
+
+        assert self._session is not None  # connect() ensures session exists
+
+        url = f"{self.base_url}/plant/{plant_id}/monitor?refresh=true"
+        headers = {"authorization": f"Bearer {self.__token}"}
+
+        try:
+            async with self._session.get(
+                url, headers=headers, timeout=self.timeout
+            ) as response:
+                if self.debug:
+                    print(f"\n=== GET {url} ===")
+                    print(f"Status: {response.status}")
+                    print(f"Headers: {dict(response.headers)}")
+                    raw_text = await response.text()
+                    print(f"Response: {raw_text}")
+                    # Re-parse the text since we already read it
+                    result = json.loads(raw_text)
+                else:
+                    result = await response.json()
+
+                if response.status == 429:
+                    if retries > 0:
+                        await asyncio.sleep(10)
+                        return await self.get_monitor(plant_id, retries - 1)
+                    raise RateLimitError(
+                        "Rate limit exceeded for plant monitor endpoint"
+                    )
+
+                if response.status != 200:
+                    if retries > 0:
+                        await asyncio.sleep(10)
+                        return await self.get_monitor(plant_id, retries - 1)
+                    raise RequestError(
+                        f"Failed to get plant monitor data: HTTP {response.status}"
+                    )
+
+                data = result["data"]
+                return PlantMonitorData.from_dict(data)
+        except KeyError as e:
+            _LOGGER.error("Error parsing plant monitor data: %s", e)
+            # Unknown error. Try again.
+            if retries > 0:
+                return await self.get_monitor(plant_id, retries - 1)
+            return PlantMonitorData()
+        except aiohttp.ClientError as e:
+            raise RequestError(f"Failed to get plant monitor data: {e}") from e
 
     async def get_admin_info(self, retries: int | None = None) -> AdminInfo:
         """Get administrator information.

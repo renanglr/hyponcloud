@@ -110,6 +110,37 @@ async def main() -> None:
                             f"{inverter.software_version:<12}"
                         )
 
+            # Get monitor data for the first plant (if available)
+            if plants:
+                first_plant = plants[0]
+                print(f"\nFetching monitor data for plant: {first_plant.plant_name}...")
+                monitor = await client.get_monitor(first_plant.plant_id)
+                print("\n=== Plant Monitor ===")
+                print(f"{'Field':<25} {'Value':<30}")
+                print("-" * 55)
+                print(f"{'Today Energy':<25} {monitor.e_today} kWh")
+                print(f"{'Month Energy':<25} {monitor.e_month} kWh")
+                print(f"{'Year Energy':<25} {monitor.e_year} kWh")
+                print(f"{'Total Energy':<25} {monitor.e_total} kWh")
+                print(f"{'PV Power':<25} {monitor.power_pv} W")
+                print(f"{'Load Power':<25} {monitor.power_load} W")
+                print(f"{'Grid Power':<25} {monitor.meter_power} W")
+                print(f"{'Battery SOC':<25} {monitor.soc}%")
+                print(f"{'Performance':<25} {monitor.percent}%")
+                print(f"{'CO2 Saved':<25} {monitor.total_co2} kg")
+                print(f"{'Trees Equivalent':<25} {monitor.total_tree}")
+                print(f"{'Diesel Saved':<25} {monitor.total_diesel} L")
+                print(
+                    f"{'Today Earning':<25} {monitor.today_earning} {monitor.monetary}"
+                )
+                print(
+                    f"{'Month Earning':<25} {monitor.month_earning} {monitor.monetary}"
+                )
+                print(
+                    f"{'Total Earning':<25} {monitor.total_earning} {monitor.monetary}"
+                )
+                print(f"{'Warning':<25} {monitor.warning}")
+
             # Get administrator information
             print("\nFetching administrator information...")
             admin = await client.get_admin_info()

@@ -13,6 +13,7 @@ A Python library for interacting with the Hypontech Cloud API for solar inverter
 - Async/await support using aiohttp
 - Get plant overview data (power, energy production, device status)
 - Get plant list
+- Get plant monitor data (real-time energy, power, earnings, environmental impact)
 - Get inverter list for each plant
 - Get administrator information
 - Automatic token management and refresh
@@ -56,6 +57,12 @@ async def main():
             print(f"Number of inverters: {len(inverters)}")
             for inverter in inverters:
                 print(f"  {inverter.model}: {inverter.power}W")
+
+        # Get real-time monitor data for a specific plant
+        if plants:
+            monitor = await client.get_monitor(plants[0].plant_id)
+            print(f"Today's energy: {monitor.e_today}kWh")
+            print(f"Total earnings: {monitor.total_earning} {monitor.monetary}")
 
         # Get administrator information
         admin = await client.get_admin_info()

@@ -7,7 +7,7 @@ from .exceptions import (
     RateLimitError,
     RequestError,
 )
-from .models import AdminInfo, InverterData, OverviewData, PlantData
+from .models import AdminInfo, InverterData, OverviewData, PlantData, PlantMonitorData
 
 try:
     from ._version import __version__
@@ -24,4 +24,5 @@ __all__ = [
     "PlantData",
     "InverterData",
     "AdminInfo",
+    "PlantMonitorData",
 ]

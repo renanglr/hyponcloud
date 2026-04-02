@@ -14,6 +14,7 @@ from hyponcloud import (
     InverterData,
     OverviewData,
     PlantData,
+    PlantMonitorData,
     RateLimitError,
     RequestError,
 )
@@ -125,8 +126,8 @@ async def test_connect_cached_token() -> None:
     """Test connection with cached valid token."""
     client = HyponCloud("test_user", "test_pass")
     # Set a valid token (accessing private attributes for testing)
-    client._HyponCloud__token = "cached_token"  # type: ignore[attr-defined]
-    client._HyponCloud__token_expires_at = int(time()) + 1000  # type: ignore[attr-defined]
+    client._token = "cached_token"
+    client._token_expires_at = int(time()) + 1000
 
     await client.connect()
     # If token is cached, connect() should not raise any errors
@@ -701,13 +702,35 @@ async def test_get_list_error_exhausted() -> None:
             )
         )
     )
-    mock_session.get = MagicMock(side_effect=Exception("Network error"))
+    mock_session.get = MagicMock(side_effect=aiohttp.ClientError("Network error"))
 
     with patch("asyncio.sleep", return_value=None):
         client = HyponCloud("test_user", "test_pass", session=mock_session)
         await client.connect()
         with pytest.raises(RequestError, match="Failed to get plant list"):
             await client.get_list()
+
+
+@pytest.mark.asyncio
+async def test_get_list_client_error() -> None:
+    """Test get_list with aiohttp client error."""
+    mock_session = AsyncMock(spec=ClientSession)
+    mock_session.post = MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                return_value=AsyncMock(
+                    status=200,
+                    json=AsyncMock(return_value={"data": {"token": "test_token"}}),
+                )
+            )
+        )
+    )
+    mock_session.get = MagicMock(side_effect=aiohttp.ClientError("Network error"))
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+
+    with pytest.raises(RequestError, match="Failed to get plant list"):
+        await client.get_list()
 
 
 @pytest.mark.asyncio
@@ -1268,3 +1291,352 @@ async def test_get_inverters_client_error() -> None:
 
     with pytest.raises(RequestError, match="Failed to get inverter list"):
         await client.get_inverters("123")
+
+
+# ---------------------------------------------------------------------------
+# get_monitor tests
+# ---------------------------------------------------------------------------
+
+
+def _make_auth_mock() -> AsyncMock:
+    """Return a session mock that always succeeds authentication."""
+    mock_session = AsyncMock(spec=ClientSession)
+    mock_session.post = MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                return_value=AsyncMock(
+                    status=200,
+                    json=AsyncMock(return_value={"data": {"token": "test_token"}}),
+                )
+            )
+        )
+    )
+    return mock_session
+
+
+@pytest.mark.asyncio
+async def test_get_monitor_success() -> None:
+    """Test successful get_monitor."""
+    monitor_data = {
+        "monetary": "EUR",
+        "today_earning": 1.5,
+        "month_earning": 30.0,
+        "total_earning": 200.0,
+        "e_today": 5.0,
+        "e_month": 100.0,
+        "e_total": 1000.0,
+        "e_year": 500.0,
+        "total_tree": 0.5,
+        "total_co2": 10.0,
+        "total_diesel": 40.0,
+        "percent": 80,
+        "meter_power": 0.0,
+        "power_load": 500.0,
+        "w_cha": 0.0,
+        "power_pv": 500.0,
+        "soc": 60.0,
+        "micro": 0,
+        "warning": "0",
+    }
+
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                return_value=AsyncMock(
+                    status=200,
+                    json=AsyncMock(return_value={"data": monitor_data}),
+                )
+            )
+        )
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    result = await client.get_monitor("plant_123")
+
+    assert isinstance(result, PlantMonitorData)
+    assert result.monetary == "EUR"
+    assert result.e_today == 5.0
+    assert result.power_pv == 500.0
+    assert result.soc == 60.0
+
+
+@pytest.mark.asyncio
+async def test_get_monitor_rate_limit_with_retry() -> None:
+    """Test get_monitor with rate limit and retry."""
+    monitor_data = {"e_today": 5.0, "monetary": "EUR"}
+
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        side_effect=[
+            AsyncMock(__aenter__=AsyncMock(return_value=AsyncMock(status=429))),
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(
+                        status=200,
+                        json=AsyncMock(return_value={"data": monitor_data}),
+                    )
+                )
+            ),
+        ]
+    )
+
+    with patch("asyncio.sleep", return_value=None):
+        client = HyponCloud("test_user", "test_pass", session=mock_session)
+        result = await client.get_monitor("plant_123")
+
+    assert isinstance(result, PlantMonitorData)
+    assert result.e_today == 5.0
+
+
+@pytest.mark.asyncio
+async def test_get_monitor_rate_limit_exhausted() -> None:
+    """Test get_monitor with rate limit and exhausted retries."""
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        return_value=AsyncMock(__aenter__=AsyncMock(return_value=AsyncMock(status=429)))
+    )
+
+    with patch("asyncio.sleep", return_value=None):
+        client = HyponCloud("test_user", "test_pass", session=mock_session)
+        with pytest.raises(RateLimitError, match="Rate limit exceeded"):
+            await client.get_monitor("plant_123")
+
+
+@pytest.mark.asyncio
+async def test_get_monitor_http_error_with_retry() -> None:
+    """Test get_monitor with HTTP error and retry."""
+    monitor_data = {"e_today": 5.0, "monetary": "EUR"}
+
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        side_effect=[
+            AsyncMock(__aenter__=AsyncMock(return_value=AsyncMock(status=500))),
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(
+                        status=200,
+                        json=AsyncMock(return_value={"data": monitor_data}),
+                    )
+                )
+            ),
+        ]
+    )
+
+    with patch("asyncio.sleep", return_value=None):
+        client = HyponCloud("test_user", "test_pass", session=mock_session)
+        result = await client.get_monitor("plant_123")
+
+    assert result.e_today == 5.0
+
+
+@pytest.mark.asyncio
+async def test_get_monitor_http_error_exhausted() -> None:
+    """Test get_monitor with HTTP error and exhausted retries."""
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        return_value=AsyncMock(__aenter__=AsyncMock(return_value=AsyncMock(status=500)))
+    )
+
+    with patch("asyncio.sleep", return_value=None):
+        client = HyponCloud("test_user", "test_pass", session=mock_session)
+        with pytest.raises(RequestError, match="Failed to get plant monitor"):
+            await client.get_monitor("plant_123")
+
+
+@pytest.mark.asyncio
+async def test_get_monitor_parse_error_with_retry() -> None:
+    """Test get_monitor with parse error and retry."""
+    monitor_data = {"e_today": 5.0, "monetary": "EUR"}
+
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        side_effect=[
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(status=200, json=AsyncMock(return_value={}))
+                )
+            ),
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(
+                        status=200,
+                        json=AsyncMock(return_value={"data": monitor_data}),
+                    )
+                )
+            ),
+        ]
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    result = await client.get_monitor("plant_123")
+
+    assert isinstance(result, PlantMonitorData)
+    assert result.e_today == 5.0
+
+
+@pytest.mark.asyncio
+async def test_get_monitor_parse_error_exhausted() -> None:
+    """Test get_monitor with parse error and exhausted retries."""
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                return_value=AsyncMock(status=200, json=AsyncMock(return_value={}))
+            )
+        )
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    result = await client.get_monitor("plant_123")
+
+    assert isinstance(result, PlantMonitorData)
+    assert result.e_today == 0.0
+
+
+@pytest.mark.asyncio
+async def test_get_monitor_client_error() -> None:
+    """Test get_monitor with aiohttp client error."""
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(side_effect=aiohttp.ClientError("Network error"))
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+
+    with pytest.raises(RequestError, match="Failed to get plant monitor"):
+        await client.get_monitor("plant_123")
+
+
+# ---------------------------------------------------------------------------
+# debug=True path tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_connect_debug_mode() -> None:
+    """Test connect() with debug=True exercises the text/json.loads path."""
+    response_body = '{"data": {"token": "debug_token"}}'
+
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.text = AsyncMock(return_value=response_body)
+    mock_response.headers = {"Content-Type": "application/json"}
+
+    mock_session = AsyncMock(spec=ClientSession)
+    mock_session.post = MagicMock(
+        return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_response))
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session, debug=True)
+    await client.connect()
+
+    mock_response.text.assert_awaited_once()
+    assert client._token == "debug_token"
+
+
+@pytest.mark.asyncio
+async def test_get_overview_debug_mode() -> None:
+    """Test get_overview with debug=True exercises the text/json.loads path."""
+    mock_session = AsyncMock(spec=ClientSession)
+    mock_session.post = MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                return_value=AsyncMock(
+                    status=200,
+                    text=AsyncMock(return_value='{"data": {"token": "test_token"}}'),
+                    headers={"Content-Type": "application/json"},
+                )
+            )
+        )
+    )
+    mock_get_response = AsyncMock()
+    mock_get_response.status = 200
+    mock_get_response.text = AsyncMock(
+        return_value='{"data": {"power": 1000, "e_today": 5.0}}'
+    )
+    mock_get_response.headers = {"Content-Type": "application/json"}
+    mock_session.get = MagicMock(
+        return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_get_response))
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session, debug=True)
+    await client.connect()
+    result = await client.get_overview()
+
+    mock_get_response.text.assert_awaited_once()
+    assert result.power == 1000.0
+    assert result.e_today == 5.0
+
+
+# ---------------------------------------------------------------------------
+# Multi-page inverter pagination test
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_inverters_multi_page() -> None:
+    """Test get_inverters fetches all pages when totalPage > 1."""
+    page1_data = [{"plant_name": "Test Plant", "sn": "SN_PAGE1"}]
+    page2_data = [{"plant_name": "Test Plant", "sn": "SN_PAGE2"}]
+
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        side_effect=[
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(
+                        status=200,
+                        json=AsyncMock(
+                            return_value={"data": page1_data, "totalPage": 2}
+                        ),
+                    )
+                )
+            ),
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(
+                        status=200,
+                        json=AsyncMock(
+                            return_value={"data": page2_data, "totalPage": 2}
+                        ),
+                    )
+                )
+            ),
+        ]
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    result = await client.get_inverters("plant_123")
+
+    assert len(result) == 2
+    assert result[0].sn == "SN_PAGE1"
+    assert result[1].sn == "SN_PAGE2"
+    assert mock_session.get.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Token expiry re-authentication test
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_connect_token_expiry_reauthenticates() -> None:
+    """Test that connect() re-authenticates when the token has expired."""
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value={"data": {"token": "new_token"}})
+
+    mock_session = AsyncMock(spec=ClientSession)
+    mock_session.post = MagicMock(
+        return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_response))
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    # Inject an already-expired token
+    client._token = "old_token"
+    client._token_expires_at = int(time()) - 100
+
+    await client.connect()
+
+    # Should have made a new login request and stored the new token
+    mock_session.post.assert_called_once()
+    assert client._token == "new_token"

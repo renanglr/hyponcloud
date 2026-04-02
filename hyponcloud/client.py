@@ -45,10 +45,10 @@ class HyponCloud:
 
         self._session = session
         self._own_session = session is None
-        self.__username = username
-        self.__password = password
-        self.__token = ""
-        self.__token_expires_at = 0
+        self._username = username
+        self._password = password
+        self._token = ""
+        self._token_expires_at = 0
 
     async def __aenter__(self) -> "HyponCloud":
         """Async context manager entry."""
@@ -73,7 +73,7 @@ class HyponCloud:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
-        if self.__token and self.__token_expires_at > time():
+        if self._token and self._token_expires_at > time():
             return
 
         if not self._session:
@@ -81,7 +81,7 @@ class HyponCloud:
             self._own_session = True
 
         url = f"{self.base_url}/login"
-        data = {"username": self.__username, "password": self.__password}
+        data = {"username": self._username, "password": self._password}
 
         try:
             async with self._session.post(
@@ -100,8 +100,8 @@ class HyponCloud:
                         f"Connection failed with status {response.status}"
                     )
 
-                self.__token = result["data"]["token"]
-                self.__token_expires_at = int(time()) + self.token_validity
+                self._token = result["data"]["token"]
+                self._token_expires_at = int(time()) + self.token_validity
         except aiohttp.ClientError as e:
             raise RequestError(f"Failed to connect to Hypon Cloud: {e}") from e
         except KeyError as e:
@@ -143,7 +143,7 @@ class HyponCloud:
         await self.connect()
         assert self._session is not None  # connect() ensures session exists
 
-        headers = {"authorization": f"Bearer {self.__token}"}
+        headers = {"authorization": f"Bearer {self._token}"}
         try:
             async with self._session.get(
                 url, headers=headers, timeout=self.timeout
@@ -274,12 +274,15 @@ class HyponCloud:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
+        retries = retries if retries is not None else self.retries
         url = f"{self.base_url}/plant/{plant_id}/monitor?refresh=true"
         try:
             result = await self._request(url, "plant monitor", retries)
             return PlantMonitorData.from_dict(result["data"])
         except KeyError as e:
             _LOGGER.error("Error parsing plant monitor data: %s", e)
+            if retries > 0:
+                return await self.get_monitor(plant_id, retries - 1)
             return PlantMonitorData()
 
     async def get_admin_info(self, retries: int | None = None) -> AdminInfo:

@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 from time import time
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
 
@@ -119,8 +119,8 @@ class HyponCloud:
             print(f"Headers: {dict(response.headers)}")
             raw_text = await response.text()
             print(f"Response: {raw_text}")
-            return dict(json.loads(raw_text))
-        return dict(await response.json())
+            return cast(dict, json.loads(raw_text))
+        return cast(dict, await response.json())
 
     async def _request(
         self, url: str, endpoint_name: str, retries: int | None = None
@@ -182,12 +182,15 @@ class HyponCloud:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
+        retries = retries if retries is not None else self.retries
         url = f"{self.base_url}/plant/overview"
         try:
             result = await self._request(url, "plant overview", retries)
             return OverviewData.from_dict(result["data"])
         except KeyError as e:
             _LOGGER.error("Error parsing plant overview data: %s", e)
+            if retries > 0:
+                return await self.get_overview(retries - 1)
             return OverviewData()
 
     async def get_list(self, retries: int | None = None) -> list[PlantData]:
@@ -208,7 +211,7 @@ class HyponCloud:
         try:
             result = await self._request(url, "plant list", retries)
             return [PlantData.from_dict(item) for item in result["data"]]
-        except KeyError as e:
+        except Exception as e:
             _LOGGER.error("Error getting plant list: %s", e)
             raise RequestError(f"Failed to get plant list: {e}") from e
 
@@ -231,6 +234,7 @@ class HyponCloud:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
+        retries = retries if retries is not None else self.retries
         all_inverters: list[InverterData] = []
         page = 1
         total_pages = 1
@@ -247,6 +251,8 @@ class HyponCloud:
                 page += 1
             except KeyError as e:
                 _LOGGER.error("Error parsing inverter list data: %s", e)
+                if retries > 0:
+                    return await self.get_inverters(plant_id, retries - 1)
                 return []
 
         return all_inverters
@@ -290,6 +296,7 @@ class HyponCloud:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
+        retries = retries if retries is not None else self.retries
         url = f"{self.base_url}/administrator/admininfo"
         try:
             result = await self._request(url, "admin info", retries)
@@ -301,4 +308,6 @@ class HyponCloud:
             return AdminInfo.from_dict(data)
         except KeyError as e:
             _LOGGER.error("Error parsing admin info data: %s", e)
+            if retries > 0:
+                return await self.get_admin_info(retries - 1)
             return AdminInfo()

@@ -643,8 +643,7 @@ async def test_get_list_rate_limit_exhausted() -> None:
     with patch("asyncio.sleep", return_value=None):
         client = HyponCloud("test_user", "test_pass", session=mock_session)
         await client.connect()
-        # get_list catches RateLimitError and converts to ConnectionError
-        with pytest.raises(RequestError, match="Failed to get plant list"):
+        with pytest.raises(RateLimitError, match="Rate limit exceeded"):
             await client.get_list()
 
 
@@ -712,8 +711,8 @@ async def test_get_list_error_exhausted() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_list_client_error() -> None:
-    """Test get_list with aiohttp client error."""
+async def test_get_list_client_error_retries() -> None:
+    """Test get_list retries on aiohttp.ClientError before raising."""
     mock_session = AsyncMock(spec=ClientSession)
     mock_session.post = MagicMock(
         return_value=AsyncMock(
@@ -727,10 +726,104 @@ async def test_get_list_client_error() -> None:
     )
     mock_session.get = MagicMock(side_effect=aiohttp.ClientError("Network error"))
 
-    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    with patch("asyncio.sleep", return_value=None) as mock_sleep:
+        client = HyponCloud("test_user", "test_pass", session=mock_session, retries=2)
+        with pytest.raises(RequestError, match="Failed to get plant list"):
+            await client.get_list()
 
-    with pytest.raises(RequestError, match="Failed to get plant list"):
-        await client.get_list()
+    assert mock_sleep.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_list_multi_page() -> None:
+    """Test get_list fetches all pages when totalPage > 1."""
+    page1_data = [{"plant_id": "P1", "plant_name": "Plant One"}]
+    page2_data = [{"plant_id": "P2", "plant_name": "Plant Two"}]
+
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        side_effect=[
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(
+                        status=200,
+                        json=AsyncMock(
+                            return_value={"data": page1_data, "totalPage": 2}
+                        ),
+                    )
+                )
+            ),
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(
+                        status=200,
+                        json=AsyncMock(
+                            return_value={"data": page2_data, "totalPage": 2}
+                        ),
+                    )
+                )
+            ),
+        ]
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    result = await client.get_list()
+
+    assert len(result) == 2
+    assert result[0].plant_id == "P1"
+    assert result[1].plant_id == "P2"
+    assert mock_session.get.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_list_parse_error_with_retry() -> None:
+    """Test get_list with parse error and retry."""
+    plant_data = [{"plant_id": "123", "plant_name": "Test Plant"}]
+
+    mock_session = _make_auth_mock()
+
+    # First call returns invalid data (missing "data" key), second call succeeds
+    mock_session.get = MagicMock(
+        side_effect=[
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(status=200, json=AsyncMock(return_value={}))
+                )
+            ),
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(
+                        status=200,
+                        json=AsyncMock(return_value={"data": plant_data}),
+                    )
+                )
+            ),
+        ]
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    result = await client.get_list()
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0].plant_id == "123"
+
+
+@pytest.mark.asyncio
+async def test_get_list_parse_error_exhausted() -> None:
+    """Test get_list with parse error and exhausted retries."""
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                return_value=AsyncMock(status=200, json=AsyncMock(return_value={}))
+            )
+        )
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    result = await client.get_list()
+    assert result == []
 
 
 @pytest.mark.asyncio

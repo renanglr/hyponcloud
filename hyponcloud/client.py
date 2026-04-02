@@ -87,8 +87,6 @@ class HyponCloud:
             async with self._session.post(
                 url, json=data, timeout=self.timeout
             ) as response:
-                result = await self._parse_response(response, "POST", url)
-
                 if response.status == 401:
                     raise AuthenticationError("Invalid credentials")
                 if response.status == 429:
@@ -100,6 +98,7 @@ class HyponCloud:
                         f"Connection failed with status {response.status}"
                     )
 
+                result = await self._parse_response(response, "POST", url)
                 self._token = result["data"]["token"]
                 self._token_expires_at = int(time()) + self.token_validity
         except aiohttp.ClientError as e:
@@ -166,6 +165,9 @@ class HyponCloud:
 
                 return result
         except aiohttp.ClientError as e:
+            if retries > 0:
+                await asyncio.sleep(10)
+                return await self._request(url, endpoint_name, retries - 1)
             raise RequestError(f"Failed to get {endpoint_name}: {e}") from e
 
     async def get_overview(self, retries: int | None = None) -> OverviewData:
@@ -196,24 +198,41 @@ class HyponCloud:
     async def get_list(self, retries: int | None = None) -> list[PlantData]:
         """Get plant list.
 
+        This method automatically fetches all pages of plants.
+
         Args:
             retries: Number of retry attempts if request fails. If None,
                 uses the client's default retry setting.
 
         Returns:
-            List of PlantData objects.
+            List of all PlantData objects across all pages.
 
         Raises:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
-        url = f"{self.base_url}/plant/list2?page=1&page_size=10&refresh=true"
-        try:
-            result = await self._request(url, "plant list", retries)
-            return [PlantData.from_dict(item) for item in result["data"]]
-        except Exception as e:
-            _LOGGER.error("Error getting plant list: %s", e)
-            raise RequestError(f"Failed to get plant list: {e}") from e
+        retries = retries if retries is not None else self.retries
+        all_plants: list[PlantData] = []
+        page = 1
+        total_pages = 1
+
+        while page <= total_pages:
+            url = (
+                f"{self.base_url}/plant/list2" f"?page={page}&page_size=10&refresh=true"
+            )
+            try:
+                result = await self._request(url, "plant list", retries)
+                if "totalPage" in result:
+                    total_pages = result["totalPage"]
+                all_plants.extend(PlantData.from_dict(item) for item in result["data"])
+                page += 1
+            except KeyError as e:
+                _LOGGER.error("Error parsing plant list data: %s", e)
+                if retries > 0:
+                    return await self.get_list(retries - 1)
+                return []
+
+        return all_plants
 
     async def get_inverters(
         self, plant_id: str, retries: int | None = None

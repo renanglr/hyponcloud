@@ -6,6 +6,13 @@ from mashumaro import DataClassDictMixin
 from mashumaro.config import BaseConfig
 
 
+class _HyponConfig(BaseConfig):
+    """Shared mashumaro configuration for all models."""
+
+    omit_none = True
+    allow_deserialization_not_by_alias = True
+
+
 @dataclass
 class EarningData(DataClassDictMixin):
     """Earning data for a plant."""
@@ -14,11 +21,7 @@ class EarningData(DataClassDictMixin):
     today: float = 0.0
     total: float = 0.0
 
-    class Config(BaseConfig):
-        """Mashumaro configuration."""
-
-        omit_none = True
-        allow_deserialization_not_by_alias = True
+    Config = _HyponConfig
 
 
 @dataclass
@@ -32,11 +35,7 @@ class GatewayData(DataClassDictMixin):
     push_time: int = 0
     pid: str = ""
 
-    class Config(BaseConfig):
-        """Mashumaro configuration."""
-
-        omit_none = True
-        allow_deserialization_not_by_alias = True
+    Config = _HyponConfig
 
 
 @dataclass
@@ -49,11 +48,7 @@ class PortData(DataClassDictMixin):
     y: int = -1
     port: int = 0
 
-    class Config(BaseConfig):
-        """Mashumaro configuration."""
-
-        omit_none = True
-        allow_deserialization_not_by_alias = True
+    Config = _HyponConfig
 
 
 @dataclass
@@ -80,11 +75,7 @@ class OverviewData(DataClassDictMixin):
     total_tree: float = 0.0
     earning: list[EarningData] = field(default_factory=list)
 
-    class Config(BaseConfig):
-        """Mashumaro configuration."""
-
-        omit_none = True
-        allow_deserialization_not_by_alias = True
+    Config = _HyponConfig
 
 
 @dataclass
@@ -116,11 +107,7 @@ class PlantData(DataClassDictMixin):
     top: int = 0
     property: int = 0
 
-    class Config(BaseConfig):
-        """Mashumaro configuration."""
-
-        omit_none = True
-        allow_deserialization_not_by_alias = True
+    Config = _HyponConfig
 
 
 @dataclass
@@ -164,11 +151,7 @@ class InverterData(DataClassDictMixin):
     gateway: GatewayData | None = None
     port: list[PortData] = field(default_factory=list)
 
-    class Config(BaseConfig):
-        """Mashumaro configuration."""
-
-        omit_none = True
-        allow_deserialization_not_by_alias = True
+    Config = _HyponConfig
 
 
 @dataclass
@@ -199,11 +182,7 @@ class PlantMonitorData(DataClassDictMixin):
     micro: int = 0
     warning: str = ""
 
-    class Config(BaseConfig):
-        """Mashumaro configuration."""
-
-        omit_none = True
-        allow_deserialization_not_by_alias = True
+    Config = _HyponConfig
 
 
 @dataclass
@@ -250,8 +229,4 @@ class AdminInfo(DataClassDictMixin):
     first_login: bool = False
     token: str = ""
 
-    class Config(BaseConfig):
-        """Mashumaro configuration."""
-
-        omit_none = True
-        allow_deserialization_not_by_alias = True
+    Config = _HyponConfig

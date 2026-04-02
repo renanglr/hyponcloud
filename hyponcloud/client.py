@@ -87,16 +87,7 @@ class HyponCloud:
             async with self._session.post(
                 url, json=data, timeout=self.timeout
             ) as response:
-                if self.debug:
-                    print(f"\n=== POST {url} ===")
-                    print(f"Status: {response.status}")
-                    print(f"Headers: {dict(response.headers)}")
-                    raw_text = await response.text()
-                    print(f"Response: {raw_text}")
-                    # Re-parse the text since we already read it
-                    result = json.loads(raw_text)
-                else:
-                    result = await response.json()
+                result = await self._parse_response(response, "POST", url)
 
                 if response.status == 401:
                     raise AuthenticationError("Invalid credentials")
@@ -118,6 +109,65 @@ class HyponCloud:
                 f"Invalid response from API, missing token: {e}"
             ) from e
 
+    async def _parse_response(
+        self, response: aiohttp.ClientResponse, method: str, url: str
+    ) -> dict:
+        """Parse response, optionally printing debug info."""
+        if self.debug:
+            print(f"\n=== {method} {url} ===")
+            print(f"Status: {response.status}")
+            print(f"Headers: {dict(response.headers)}")
+            raw_text = await response.text()
+            print(f"Response: {raw_text}")
+            return dict(json.loads(raw_text))
+        return dict(await response.json())
+
+    async def _request(
+        self, url: str, endpoint_name: str, retries: int | None = None
+    ) -> dict:
+        """Make an authenticated GET request with retry logic.
+
+        Args:
+            url: The URL to request.
+            endpoint_name: Human-readable name for error messages.
+            retries: Number of retry attempts. Defaults to client's setting.
+
+        Returns:
+            Parsed JSON response dict.
+
+        Raises:
+            RateLimitError: If rate limit is exceeded and retries are exhausted.
+            RequestError: If request fails and retries are exhausted.
+        """
+        retries = retries if retries is not None else self.retries
+        await self.connect()
+        assert self._session is not None  # connect() ensures session exists
+
+        headers = {"authorization": f"Bearer {self.__token}"}
+        try:
+            async with self._session.get(
+                url, headers=headers, timeout=self.timeout
+            ) as response:
+                result = await self._parse_response(response, "GET", url)
+
+                if response.status == 429:
+                    if retries > 0:
+                        await asyncio.sleep(10)
+                        return await self._request(url, endpoint_name, retries - 1)
+                    raise RateLimitError(f"Rate limit exceeded for {endpoint_name}")
+
+                if response.status != 200:
+                    if retries > 0:
+                        await asyncio.sleep(10)
+                        return await self._request(url, endpoint_name, retries - 1)
+                    raise RequestError(
+                        f"Failed to get {endpoint_name}: HTTP {response.status}"
+                    )
+
+                return result
+        except aiohttp.ClientError as e:
+            raise RequestError(f"Failed to get {endpoint_name}: {e}") from e
+
     async def get_overview(self, retries: int | None = None) -> OverviewData:
         """Get plant overview.
 
@@ -132,53 +182,13 @@ class HyponCloud:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
-        retries = retries if retries is not None else self.retries
-        await self.connect()
-
-        assert self._session is not None  # connect() ensures session exists
-
         url = f"{self.base_url}/plant/overview"
-        headers = {"authorization": f"Bearer {self.__token}"}
-
         try:
-            async with self._session.get(
-                url, headers=headers, timeout=self.timeout
-            ) as response:
-                if self.debug:
-                    print(f"\n=== GET {url} ===")
-                    print(f"Status: {response.status}")
-                    print(f"Headers: {dict(response.headers)}")
-                    raw_text = await response.text()
-                    print(f"Response: {raw_text}")
-                    # Re-parse the text since we already read it
-                    result = json.loads(raw_text)
-                else:
-                    result = await response.json()
-
-                if response.status == 429:
-                    if retries > 0:
-                        await asyncio.sleep(10)
-                        return await self.get_overview(retries - 1)
-                    raise RateLimitError("Rate limit exceeded for overview endpoint")
-
-                if response.status != 200:
-                    if retries > 0:
-                        await asyncio.sleep(10)
-                        return await self.get_overview(retries - 1)
-                    raise RequestError(
-                        f"Failed to get plant overview: HTTP {response.status}"
-                    )
-
-                data = result["data"]
-                return OverviewData.from_dict(data)
+            result = await self._request(url, "plant overview", retries)
+            return OverviewData.from_dict(result["data"])
         except KeyError as e:
             _LOGGER.error("Error parsing plant overview data: %s", e)
-            # Unknown error. Try again.
-            if retries > 0:
-                return await self.get_overview(retries - 1)
             return OverviewData()
-        except aiohttp.ClientError as e:
-            raise RequestError(f"Failed to get plant overview: {e}") from e
 
     async def get_list(self, retries: int | None = None) -> list[PlantData]:
         """Get plant list.
@@ -194,47 +204,12 @@ class HyponCloud:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
-        retries = retries if retries is not None else self.retries
-        await self.connect()
-
-        assert self._session is not None  # connect() ensures session exists
-
         url = f"{self.base_url}/plant/list2?page=1&page_size=10&refresh=true"
-        headers = {"authorization": f"Bearer {self.__token}"}
-
         try:
-            async with self._session.get(
-                url, headers=headers, timeout=self.timeout
-            ) as response:
-                if self.debug:
-                    print(f"\n=== GET {url} ===")
-                    print(f"Status: {response.status}")
-                    print(f"Headers: {dict(response.headers)}")
-                    raw_text = await response.text()
-                    print(f"Response: {raw_text}")
-                    # Re-parse the text since we already read it
-                    result = json.loads(raw_text)
-                else:
-                    result = await response.json()
-
-                if response.status == 429:
-                    if retries > 0:
-                        await asyncio.sleep(10)
-                        return await self.get_list(retries - 1)
-                    raise RateLimitError("Rate limit exceeded for plant list endpoint")
-
-                if response.status != 200:
-                    if retries > 0:
-                        await asyncio.sleep(10)
-                        return await self.get_list(retries - 1)
-
-                data_list = result["data"]
-                return [PlantData.from_dict(item) for item in data_list]
-        except Exception as e:
+            result = await self._request(url, "plant list", retries)
+            return [PlantData.from_dict(item) for item in result["data"]]
+        except KeyError as e:
             _LOGGER.error("Error getting plant list: %s", e)
-            # Unknown error. Try again.
-            if retries > 0:
-                return await self.get_list(retries - 1)
             raise RequestError(f"Failed to get plant list: {e}") from e
 
     async def get_inverters(
@@ -256,69 +231,23 @@ class HyponCloud:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
-        retries = retries if retries is not None else self.retries
-        await self.connect()
-
-        assert self._session is not None  # connect() ensures session exists
-
         all_inverters: list[InverterData] = []
         page = 1
         total_pages = 1
 
         while page <= total_pages:
             url = f"{self.base_url}/plant/{plant_id}/inverter?page={page}"
-            headers = {"authorization": f"Bearer {self.__token}"}
-
             try:
-                async with self._session.get(
-                    url, headers=headers, timeout=self.timeout
-                ) as response:
-                    if self.debug:
-                        print(f"\n=== GET {url} ===")
-                        print(f"Status: {response.status}")
-                        print(f"Headers: {dict(response.headers)}")
-                        raw_text = await response.text()
-                        print(f"Response: {raw_text}")
-                        # Re-parse the text since we already read it
-                        result = json.loads(raw_text)
-                    else:
-                        result = await response.json()
-
-                    if response.status == 429:
-                        if retries > 0:
-                            await asyncio.sleep(10)
-                            return await self.get_inverters(plant_id, retries - 1)
-                        raise RateLimitError(
-                            "Rate limit exceeded for inverter list endpoint"
-                        )
-
-                    if response.status != 200:
-                        if retries > 0:
-                            await asyncio.sleep(10)
-                            return await self.get_inverters(plant_id, retries - 1)
-                        raise RequestError(
-                            f"Failed to get inverter list: HTTP {response.status}"
-                        )
-
-                    data_list = result["data"]
-
-                    # Update total pages from response
-                    if "totalPage" in result:
-                        total_pages = result["totalPage"]
-
-                    # from_dict automatically ignores fields not in the dataclass
-                    inverters = [InverterData.from_dict(item) for item in data_list]
-                    all_inverters.extend(inverters)
-
-                    page += 1
+                result = await self._request(url, "inverter list", retries)
+                if "totalPage" in result:
+                    total_pages = result["totalPage"]
+                all_inverters.extend(
+                    InverterData.from_dict(item) for item in result["data"]
+                )
+                page += 1
             except KeyError as e:
                 _LOGGER.error("Error parsing inverter list data: %s", e)
-                # Unknown error. Try again.
-                if retries > 0:
-                    return await self.get_inverters(plant_id, retries - 1)
                 return []
-            except aiohttp.ClientError as e:
-                raise RequestError(f"Failed to get inverter list: {e}") from e
 
         return all_inverters
 
@@ -339,55 +268,13 @@ class HyponCloud:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
-        retries = retries if retries is not None else self.retries
-        await self.connect()
-
-        assert self._session is not None  # connect() ensures session exists
-
         url = f"{self.base_url}/plant/{plant_id}/monitor?refresh=true"
-        headers = {"authorization": f"Bearer {self.__token}"}
-
         try:
-            async with self._session.get(
-                url, headers=headers, timeout=self.timeout
-            ) as response:
-                if self.debug:
-                    print(f"\n=== GET {url} ===")
-                    print(f"Status: {response.status}")
-                    print(f"Headers: {dict(response.headers)}")
-                    raw_text = await response.text()
-                    print(f"Response: {raw_text}")
-                    # Re-parse the text since we already read it
-                    result = json.loads(raw_text)
-                else:
-                    result = await response.json()
-
-                if response.status == 429:
-                    if retries > 0:
-                        await asyncio.sleep(10)
-                        return await self.get_monitor(plant_id, retries - 1)
-                    raise RateLimitError(
-                        "Rate limit exceeded for plant monitor endpoint"
-                    )
-
-                if response.status != 200:
-                    if retries > 0:
-                        await asyncio.sleep(10)
-                        return await self.get_monitor(plant_id, retries - 1)
-                    raise RequestError(
-                        f"Failed to get plant monitor data: HTTP {response.status}"
-                    )
-
-                data = result["data"]
-                return PlantMonitorData.from_dict(data)
+            result = await self._request(url, "plant monitor", retries)
+            return PlantMonitorData.from_dict(result["data"])
         except KeyError as e:
             _LOGGER.error("Error parsing plant monitor data: %s", e)
-            # Unknown error. Try again.
-            if retries > 0:
-                return await self.get_monitor(plant_id, retries - 1)
             return PlantMonitorData()
-        except aiohttp.ClientError as e:
-            raise RequestError(f"Failed to get plant monitor data: {e}") from e
 
     async def get_admin_info(self, retries: int | None = None) -> AdminInfo:
         """Get administrator information.
@@ -403,54 +290,15 @@ class HyponCloud:
             AuthenticationError: If authentication fails.
             ConnectionError: If connection to API fails.
         """
-        retries = retries if retries is not None else self.retries
-        await self.connect()
-
-        assert self._session is not None  # connect() ensures session exists
-
         url = f"{self.base_url}/administrator/admininfo"
-        headers = {"authorization": f"Bearer {self.__token}"}
-
         try:
-            async with self._session.get(
-                url, headers=headers, timeout=self.timeout
-            ) as response:
-                if self.debug:
-                    print(f"\n=== GET {url} ===")
-                    print(f"Status: {response.status}")
-                    print(f"Headers: {dict(response.headers)}")
-                    raw_text = await response.text()
-                    print(f"Response: {raw_text}")
-                    # Re-parse the text since we already read it
-                    result = json.loads(raw_text)
-                else:
-                    result = await response.json()
-
-                if response.status == 429:
-                    if retries > 0:
-                        await asyncio.sleep(10)
-                        return await self.get_admin_info(retries - 1)
-                    raise RateLimitError("Rate limit exceeded for admin info endpoint")
-
-                if response.status != 200:
-                    if retries > 0:
-                        await asyncio.sleep(10)
-                        return await self.get_admin_info(retries - 1)
-                    raise RequestError(
-                        f"Failed to get admin info: HTTP {response.status}"
-                    )
-
-                data = result["data"]
-                # Flatten nested "info" object into the main data dict
-                if "info" in data and isinstance(data["info"], dict):
-                    info_data = data.pop("info")
-                    data.update(info_data)
-                return AdminInfo.from_dict(data)
+            result = await self._request(url, "admin info", retries)
+            data = result["data"]
+            # Flatten nested "info" object into the main data dict
+            if "info" in data and isinstance(data["info"], dict):
+                info_data = data.pop("info")
+                data.update(info_data)
+            return AdminInfo.from_dict(data)
         except KeyError as e:
             _LOGGER.error("Error parsing admin info data: %s", e)
-            # Unknown error. Try again.
-            if retries > 0:
-                return await self.get_admin_info(retries - 1)
             return AdminInfo()
-        except aiohttp.ClientError as e:
-            raise RequestError(f"Failed to get admin info: {e}") from e

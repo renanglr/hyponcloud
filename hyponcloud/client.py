@@ -147,8 +147,6 @@ class HyponCloud:
             async with self._session.get(
                 url, headers=headers, timeout=self.timeout
             ) as response:
-                result = await self._parse_response(response, "GET", url)
-
                 if response.status == 429:
                     if retries > 0:
                         await asyncio.sleep(10)
@@ -163,7 +161,7 @@ class HyponCloud:
                         f"Failed to get {endpoint_name}: HTTP {response.status}"
                     )
 
-                return result
+                return await self._parse_response(response, "GET", url)
         except aiohttp.ClientError as e:
             if retries > 0:
                 await asyncio.sleep(10)
@@ -325,8 +323,10 @@ class HyponCloud:
             data = result["data"]
             # Flatten nested "info" object into the main data dict
             if "info" in data and isinstance(data["info"], dict):
-                info_data = data.pop("info")
-                data.update(info_data)
+                data = {
+                    **{k: v for k, v in data.items() if k != "info"},
+                    **data["info"],
+                }
             return AdminInfo.from_dict(data)
         except KeyError as e:
             _LOGGER.error("Error parsing admin info data: %s", e)

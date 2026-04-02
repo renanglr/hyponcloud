@@ -13,5 +13,5 @@ class RequestError(HyponCloudError):
     """Exception raised when API request fails."""
 
 
-class RateLimitError(HyponCloudError):
+class RateLimitError(RequestError):
     """Exception raised when API rate limit is exceeded."""

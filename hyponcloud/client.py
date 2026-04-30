@@ -21,6 +21,7 @@ class HyponCloud:
         self,
         username: str,
         password: str,
+        oem: int = 0,
         session: aiohttp.ClientSession | None = None,
         timeout: int = 10,
         retries: int = 3,
@@ -31,6 +32,7 @@ class HyponCloud:
         Args:
             username: The username for Hypon Cloud.
             password: The password for Hypon Cloud.
+            oem: The OEM ID to connect to.
             session: Optional aiohttp client session. If not provided, a new
                 one will be created.
             timeout: Request timeout in seconds. Defaults to 10.
@@ -47,6 +49,7 @@ class HyponCloud:
         self._own_session = session is None
         self._username = username
         self._password = password
+        self._oem = oem
         self._token = ""
         self._token_expires_at = 0
 
@@ -81,7 +84,7 @@ class HyponCloud:
             self._own_session = True
 
         url = f"{self.base_url}/login"
-        data = {"username": self._username, "password": self._password}
+        data = {"username": self._username, "password": self._password, "oem": self._oem}
 
         try:
             async with self._session.post(

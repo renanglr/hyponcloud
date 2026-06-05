@@ -128,6 +128,7 @@ async def main() -> None:
                 print(f"{'PV Power':<25} {monitor.power_pv} W")
                 print(f"{'Load Power':<25} {monitor.power_load} W")
                 print(f"{'Grid Power':<25} {monitor.meter_power} W")
+                print(f"{'Battery Discharge':<25} {monitor.w_cha} W")
                 print(f"{'Battery SOC':<25} {monitor.soc}%")
                 print(f"{'Performance':<25} {monitor.percent}%")
                 print(f"{'CO2 Saved':<25} {monitor.total_co2} kg")

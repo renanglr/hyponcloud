@@ -68,10 +68,10 @@ async def main() -> None:
             if plants:
                 # Table header
                 print(
-                    f"{'Name':<20} {'Location':<25} {'Status':<10} "
+                    f"{'Name':<20} {'Location':<25} {'Status':<10} {'Type':<12} "
                     f"{'Power':<15} {'Today':<10} {'Total':<10}"
                 )
-                print("-" * 100)
+                print("-" * 112)
                 # Table rows
                 for plant in plants:
                     location = f"{plant.city}, {plant.country}"
@@ -80,16 +80,21 @@ async def main() -> None:
                         f"{plant.plant_name:<20} "
                         f"{location:<25} "
                         f"{plant.status:<10} "
+                        f"{plant.plant_type:<12} "
                         f"{power_str:<15} "
                         f"{plant.e_today:<10.2f} "
                         f"{plant.e_total:<10.2f}"
                     )
 
-            # Get inverters for the first plant (if available)
-            if plants:
-                first_plant = plants[0]
-                print(f"\nFetching inverters for plant: {first_plant.plant_name}...")
-                inverters = await client.get_inverters(first_plant.plant_id)
+            # Get inverters and monitor data for each plant
+            for plant in plants:
+                print(f"\n{'#' * 60}")
+                print(f"# Plant: {plant.plant_name} (ID: {plant.plant_id})")
+                print(f"{'#' * 60}")
+
+                # Inverters for this plant
+                print(f"\nFetching inverters for plant: {plant.plant_name}...")
+                inverters = await client.get_inverters(plant.plant_id)
                 print(f"\n=== Inverters ({len(inverters)}) ===")
                 if inverters:
                     # Table header
@@ -110,11 +115,9 @@ async def main() -> None:
                             f"{inverter.software_version:<12}"
                         )
 
-            # Get monitor data for the first plant (if available)
-            if plants:
-                first_plant = plants[0]
-                print(f"\nFetching monitor data for plant: {first_plant.plant_name}...")
-                monitor = await client.get_monitor(first_plant.plant_id)
+                # Monitor data for this plant
+                print(f"\nFetching monitor data for plant: {plant.plant_name}...")
+                monitor = await client.get_monitor(plant.plant_id)
                 print("\n=== Plant Monitor ===")
                 print(f"{'Field':<25} {'Value':<30}")
                 print("-" * 55)

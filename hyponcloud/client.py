@@ -232,9 +232,7 @@ class HyponCloud:
         total_pages = 1
 
         while page <= total_pages:
-            url = (
-                f"{self.base_url}/plant/list2" f"?page={page}&page_size=10&refresh=true"
-            )
+            url = f"{self.base_url}/plant/list2?page={page}&page_size=10&refresh=true"
             try:
                 result = await self._request(url, "plant list", retries)
                 if "totalPage" in result:

@@ -1018,7 +1018,7 @@ async def test_get_monitor_success() -> None:
         "total_tree": 0.5,
         "total_co2": 10.0,
         "total_diesel": 40.0,
-        "percent": 80,
+        "percent": 80.5,
         "meter_power": 0.0,
         "power_load": 500.0,
         "w_cha": 0.0,
@@ -1048,6 +1048,7 @@ async def test_get_monitor_success() -> None:
     assert result.e_today == 5.0
     assert result.power_pv == 500.0
     assert result.soc == 60.0
+    assert result.percent == 80.5
 
 
 @pytest.mark.asyncio

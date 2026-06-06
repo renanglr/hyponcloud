@@ -173,7 +173,7 @@ class PlantMonitorData(DataClassDictMixin):
     total_tree: float = 0.0
     total_co2: float = 0.0
     total_diesel: float = 0.0
-    percent: int = 0
+    percent: float = 0.0
     meter_power: float = 0.0  # Power drawn from the grid (W)
     power_load: float = 0.0  # Home/load power consumption (W)
     w_cha: float = 0.0  # Battery discharging power (W)

@@ -83,6 +83,7 @@ async def main():
         if plants:
             monitor = await client.get_monitor(plants[0].plant_id)
             print(f"Today's energy: {monitor.e_today}kWh")
+            print(f"Performance: {monitor.percent:g}%")
             print(f"Total earnings: {monitor.total_earning} {monitor.monetary}")
 
         # Get administrator information

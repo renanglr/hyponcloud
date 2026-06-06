@@ -204,7 +204,7 @@ Data class containing real-time monitoring data for a specific plant.
 - `total_tree` (float): Equivalent trees planted
 - `total_co2` (float): Total CO2 savings in kg
 - `total_diesel` (float): Equivalent diesel saved in litres
-- `percent` (int): Performance percentage
+- `percent` (float): Performance percentage
 - `meter_power` (float): Grid power in watts
 - `power_load` (float): Load power in watts
 - `w_cha` (float): Charging power in watts

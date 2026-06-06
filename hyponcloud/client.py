@@ -9,7 +9,14 @@ from typing import Any, cast
 import aiohttp
 
 from .exceptions import AuthenticationError, RateLimitError, RequestError
-from .models import AdminInfo, InverterData, OverviewData, PlantData, PlantMonitorData
+from .models import (
+    AdminInfo,
+    BatteryData,
+    InverterData,
+    OverviewData,
+    PlantData,
+    PlantMonitorData,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -288,6 +295,49 @@ class HyponCloud:
                 return []
 
         return all_inverters
+
+    async def get_batteries(
+        self, plant_id: str, retries: int | None = None
+    ) -> list[BatteryData]:
+        """Get all plant-level batteries for a specific plant.
+
+        This method automatically fetches all pages of batteries. Inverter
+        responses may also include an embedded battery snapshot.
+
+        Args:
+            plant_id: The plant ID to get batteries for.
+            retries: Number of retry attempts if request fails. If None,
+                uses the client's default retry setting.
+
+        Returns:
+            List of all BatteryData objects across all pages.
+
+        Raises:
+            AuthenticationError: If authentication fails.
+            ConnectionError: If connection to API fails.
+        """
+        retries = retries if retries is not None else self.retries
+        all_batteries: list[BatteryData] = []
+        page = 1
+        total_pages = 1
+
+        while page <= total_pages:
+            url = f"{self.base_url}/plant/{plant_id}/battery?page={page}&page_size=10"
+            try:
+                result = await self._request(url, "battery list", retries)
+                if "totalPage" in result:
+                    total_pages = result["totalPage"]
+                all_batteries.extend(
+                    BatteryData.from_dict(item) for item in result["data"]
+                )
+                page += 1
+            except KeyError as e:
+                _LOGGER.error("Error parsing battery list data: %s", e)
+                if retries > 0:
+                    return await self.get_batteries(plant_id, retries - 1)
+                return []
+
+        return all_batteries
 
     async def get_monitor(
         self, plant_id: str, retries: int | None = None

@@ -52,6 +52,50 @@ class PortData(DataClassDictMixin):
 
 
 @dataclass
+class BatteryData(DataClassDictMixin):
+    """Battery data from the plant endpoint or an inverter snapshot."""
+
+    time: str = ""
+    sn: str = ""
+    status: str = ""
+    soc: float = 0.0
+    ahrtg: float = 0.0
+    wh: float = 0.0
+    ohk: int = 0
+    a_bat: float = 0.0
+    a_bat_inv: float = 0.0
+    achamax: float = 0.0
+    adischamax: float = 0.0
+    battery_model: str = ""
+    gateway_model: str = ""
+    gsn: str = ""
+    gsn_version: str = ""
+    huayu: int = 0
+    inv_sn: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    mosstate: int = 0
+    ncyc: int = 0
+    pid: str = ""
+    plant_name: str = ""
+    single_hp_bat_sns: list[str] | None = None
+    spn: str = ""
+    st: int = 0
+    software_version: str = ""
+    upgrade_state: int = 0
+    v_bat: float = 0.0
+    v_bat_inv: float = 0.0
+
+    class Config(_HyponConfig):
+        aliases = {
+            "ohk": "OHK",
+            "gsn_version": "gsnversion",
+            "single_hp_bat_sns": "singleHpBatSns",
+            "software_version": "sversion",
+        }
+
+
+@dataclass
 class OverviewData(DataClassDictMixin):
     """Overview data class.
 
@@ -149,6 +193,7 @@ class InverterData(DataClassDictMixin):
     third_meter_energy: int = 0
     today_generation_third: int = 0
     gateway: GatewayData | None = None
+    battery: BatteryData | None = None
     port: list[PortData] = field(default_factory=list)
 
     Config = _HyponConfig

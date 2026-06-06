@@ -122,7 +122,7 @@ async def main() -> None:
                         f"{plant.e_total:<10.2f}"
                     )
 
-            # Get inverters and monitor data for each plant
+            # Get inverters, batteries, and monitor data for each plant
             for plant in plants:
                 print(f"\n{'#' * 60}")
                 print(f"# Plant: {plant.plant_name} (ID: {plant.plant_id})")
@@ -149,6 +149,29 @@ async def main() -> None:
                             f"{inverter.e_today:<10.2f} "
                             f"{inverter.e_total:<10.2f} "
                             f"{inverter.software_version:<12}"
+                        )
+
+                # Batteries for this plant
+                print(f"\nFetching batteries for plant: {plant.plant_name}...")
+                batteries = await client.get_batteries(plant.plant_id)
+                print(f"\n=== Batteries ({len(batteries)}) ===")
+                if batteries:
+                    # Table header
+                    print(
+                        f"{'Serial Number':<20} {'Manufacturer':<15} {'SOC':<8} "
+                        f"{'Voltage':<10} {'Current':<10} {'Cycles':<8} {'SW Ver':<14}"
+                    )
+                    print("-" * 92)
+                    # Table rows
+                    for battery in batteries:
+                        print(
+                            f"{battery.sn:<20} "
+                            f"{battery.manufacturer:<15} "
+                            f"{battery.soc:<8g} "
+                            f"{battery.v_bat:<10g} "
+                            f"{battery.a_bat_inv:<10g} "
+                            f"{battery.ncyc:<8} "
+                            f"{battery.software_version:<14}"
                         )
 
                 # Monitor data for this plant

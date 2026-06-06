@@ -9,6 +9,7 @@ from .exceptions import (
 )
 from .models import (
     AdminInfo,
+    BatteryData,
     EarningData,
     GatewayData,
     InverterData,
@@ -33,6 +34,7 @@ __all__ = [
     "PlantData",
     "InverterData",
     "AdminInfo",
+    "BatteryData",
     "EarningData",
     "GatewayData",
     "PortData",

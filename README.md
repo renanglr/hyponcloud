@@ -15,6 +15,7 @@ A Python library for interacting with the Hypontech Cloud API for solar inverter
 - Get plant list
 - Get plant monitor data (real-time energy, power, earnings, environmental impact)
 - Get inverter list for each plant
+- Get battery list for each plant
 - Get administrator information
 - Automatic token management and refresh
 - Built-in retry logic for rate limiting
@@ -78,6 +79,13 @@ async def main():
             print(f"Number of inverters: {len(inverters)}")
             for inverter in inverters:
                 print(f"  {inverter.model}: {inverter.power}W")
+
+        # Get batteries for a specific plant
+        if plants:
+            batteries = await client.get_batteries(plants[0].plant_id)
+            print(f"Number of batteries: {len(batteries)}")
+            for battery in batteries:
+                print(f"  {battery.manufacturer}: {battery.soc:g}%")
 
         # Get real-time monitor data for a specific plant
         if plants:

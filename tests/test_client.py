@@ -1106,7 +1106,7 @@ async def test_get_monitor_parse_error_exhausted() -> None:
 
 
 @pytest.mark.asyncio
-async def test_connect_debug_mode() -> None:
+async def test_connect_debug_mode(capsys: pytest.CaptureFixture[str]) -> None:
     """Test connect() with debug=True exercises the text/json.loads path."""
     response_body = '{"data": {"token": "debug_token"}}'
 
@@ -1125,6 +1125,9 @@ async def test_connect_debug_mode() -> None:
 
     mock_response.text.assert_awaited_once()
     assert client._token == "debug_token"
+    output = capsys.readouterr().out
+    assert "debug_token" not in output
+    assert '"token": "[redacted]"' in output
 
 
 @pytest.mark.asyncio

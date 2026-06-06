@@ -35,7 +35,8 @@ class HyponCloud:
                 one will be created.
             timeout: Request timeout in seconds. Defaults to 10.
             retries: Number of retry attempts for API requests. Defaults to 3.
-            debug: Enable debug mode to print raw HTTP responses. Defaults to False.
+            debug: Enable debug mode to print HTTP responses with auth tokens
+                redacted. Defaults to False.
         """
         self.base_url = "https://api.hypon.cloud/v2"
         self.token_validity = 3600
@@ -117,9 +118,25 @@ class HyponCloud:
             print(f"Status: {response.status}")
             print(f"Headers: {dict(response.headers)}")
             raw_text = await response.text()
-            print(f"Response: {raw_text}")
-            return cast(dict, json.loads(raw_text))
+            result = json.loads(raw_text)
+            print(f"Response: {json.dumps(self._redact_debug_response(result))}")
+            return cast(dict, result)
         return cast(dict, await response.json())
+
+    def _redact_debug_response(self, result: Any) -> Any:
+        """Return a debug-safe copy of a response payload."""
+        if not isinstance(result, dict):
+            return result
+
+        data = result.get("data")
+        if not isinstance(data, dict) or "token" not in data:
+            return result
+
+        redacted_result = result.copy()
+        redacted_data = data.copy()
+        redacted_data["token"] = "[redacted]"
+        redacted_result["data"] = redacted_data
+        return redacted_result
 
     async def _request(
         self, url: str, endpoint_name: str, retries: int | None = None

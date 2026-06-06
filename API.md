@@ -15,7 +15,7 @@ Initialize the client.
 - `session`: Optional aiohttp ClientSession. If not provided, one will be created automatically.
 - `timeout`: Request timeout in seconds (default: 10)
 - `retries`: Number of retry attempts for API requests (default: 3)
-- `debug`: Enable debug mode to print raw HTTP responses (default: False)
+- `debug`: Enable debug mode to print HTTP responses with authentication tokens redacted (default: False)
 
 #### `async connect() -> None`
 

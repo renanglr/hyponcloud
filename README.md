@@ -29,6 +29,27 @@ pip install hyponcloud
 
 ## Quick Start
 
+### Running the Example Script
+
+`example.py` accepts credentials as command-line arguments:
+
+```bash
+python example.py <username> <password>
+```
+
+It can also read credentials from environment variables:
+
+```bash
+HYPONCLOUD_USERNAME=your_username HYPONCLOUD_PASSWORD=your_password python example.py
+```
+
+Or from a `.env` file next to `example.py`:
+
+```dotenv
+HYPONCLOUD_USERNAME=your_username
+HYPONCLOUD_PASSWORD=your_password
+```
+
 ### Basic Usage
 
 ```python

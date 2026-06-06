@@ -1,7 +1,9 @@
 """Example usage of the hyponcloud library."""
 
 import asyncio
+import os
 import sys
+from pathlib import Path
 
 from hyponcloud import (
     AuthenticationError,
@@ -10,20 +12,54 @@ from hyponcloud import (
     RequestError,
 )
 
+ENV_FILE = Path(__file__).with_name(".env")
+
+
+def load_env_file(path: Path) -> None:
+    """Load simple KEY=VALUE entries from a .env file if it exists."""
+    if not path.is_file():
+        return
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key.startswith("export "):
+            key = key.removeprefix("export ").strip()
+        if not key:
+            continue
+
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+
+        os.environ.setdefault(key, value)
+
+
+def get_credentials() -> tuple[str, str]:
+    """Get credentials from CLI args, environment variables, or .env."""
+    load_env_file(ENV_FILE)
+
+    if len(sys.argv) == 3:
+        return sys.argv[1], sys.argv[2]
+
+    username = os.environ.get("HYPONCLOUD_USERNAME")
+    password = os.environ.get("HYPONCLOUD_PASSWORD")
+    if len(sys.argv) == 1 and username and password:
+        return username, password
+
+    print("Usage: python example.py <username> <password>")
+    print("Or set HYPONCLOUD_USERNAME and HYPONCLOUD_PASSWORD in the environment")
+    print(f"Or add them to {ENV_FILE.name} next to this script")
+    sys.exit(1)
+
 
 async def main() -> None:
     """Main example function."""
-    # Replace with your actual credentials
-    username = "your_username"
-    password = "your_password"
-
-    if len(sys.argv) == 3:
-        username = sys.argv[1]
-        password = sys.argv[2]
-    elif username == "your_username":
-        print("Usage: python example.py <username> <password>")
-        print("Or edit the script to add your credentials")
-        sys.exit(1)
+    username, password = get_credentials()
 
     try:
         # Create client using context manager with debug mode enabled

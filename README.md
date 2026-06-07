@@ -15,6 +15,7 @@ A Python library for interacting with the Hypontech Cloud API for solar inverter
 - Get plant list
 - Get plant monitor data (real-time energy, power, earnings, environmental impact)
 - Get inverter list for each plant
+- Get battery list for each plant
 - Get administrator information
 - Automatic token management and refresh
 - Built-in retry logic for rate limiting
@@ -28,6 +29,27 @@ pip install hyponcloud
 ```
 
 ## Quick Start
+
+### Running the Example Script
+
+`example.py` accepts credentials as command-line arguments:
+
+```bash
+python example.py <username> <password>
+```
+
+It can also read credentials from environment variables:
+
+```bash
+HYPONCLOUD_USERNAME=your_username HYPONCLOUD_PASSWORD=your_password python example.py
+```
+
+Or from a `.env` file next to `example.py`:
+
+```dotenv
+HYPONCLOUD_USERNAME=your_username
+HYPONCLOUD_PASSWORD=your_password
+```
 
 ### Basic Usage
 
@@ -58,10 +80,18 @@ async def main():
             for inverter in inverters:
                 print(f"  {inverter.model}: {inverter.power}W")
 
+        # Get batteries for a specific plant
+        if plants:
+            batteries = await client.get_batteries(plants[0].plant_id)
+            print(f"Number of batteries: {len(batteries)}")
+            for battery in batteries:
+                print(f"  {battery.manufacturer}: {battery.soc:g}%")
+
         # Get real-time monitor data for a specific plant
         if plants:
             monitor = await client.get_monitor(plants[0].plant_id)
             print(f"Today's energy: {monitor.e_today}kWh")
+            print(f"Performance: {monitor.percent:g}%")
             print(f"Total earnings: {monitor.total_earning} {monitor.monetary}")
 
         # Get administrator information
@@ -139,6 +169,21 @@ async def main():
 
 asyncio.run(main())
 ```
+
+### Logging
+
+The library logs each API request and response status at the `DEBUG` level using
+the standard `logging` module, under the `hyponcloud` logger. Credentials and the
+authentication token are never logged. Enable it to see the requests being made:
+
+```python
+import logging
+
+logging.getLogger("hyponcloud").setLevel(logging.DEBUG)
+```
+
+This is independent of the `debug` constructor argument, which instead prints full
+HTTP responses (with the token redacted) to stdout.
 
 ## API Reference
 

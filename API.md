@@ -15,7 +15,7 @@ Initialize the client.
 - `session`: Optional aiohttp ClientSession. If not provided, one will be created automatically.
 - `timeout`: Request timeout in seconds (default: 10)
 - `retries`: Number of retry attempts for API requests (default: 3)
-- `debug`: Enable debug mode to print raw HTTP responses (default: False)
+- `debug`: Enable debug mode to print HTTP responses with authentication tokens redacted (default: False)
 
 #### `async connect() -> None`
 
@@ -63,6 +63,21 @@ Get all inverters for a specific plant. This method automatically fetches all pa
 - `retries`: Number of retry attempts on failure. If None, uses the client's default retry setting
 
 **Returns:** List of `InverterData` objects
+
+**Raises:**
+- `AuthenticationError`: Authentication required
+- `RequestError`: Request failed
+- `RateLimitError`: Too many requests
+
+#### `async get_batteries(plant_id: str, retries: int | None = None) -> list[BatteryData]`
+
+Get all plant-level batteries for a specific plant. This method automatically fetches all pages of batteries. Inverter responses may also include an embedded battery snapshot.
+
+**Parameters:**
+- `plant_id`: The plant ID to get batteries for
+- `retries`: Number of retry attempts on failure. If None, uses the client's default retry setting
+
+**Returns:** List of `BatteryData` objects
 
 **Raises:**
 - `AuthenticationError`: Authentication required
@@ -185,7 +200,45 @@ Data class containing inverter information.
 - `today_generation_third` (int): Today's generation from third party
 - `warning` (int): Warning status
 - `gateway` (GatewayData | None): Gateway device info
+- `battery` (BatteryData | None): Optional embedded battery snapshot from the inverter endpoint; use `get_batteries()` for the full plant-level battery list
 - `port` (list[PortData]): Port configurations
+
+## BatteryData
+
+Data class containing battery information from the plant battery endpoint or an embedded inverter battery snapshot.
+
+### Attributes
+
+- `time` (str): Last update time
+- `sn` (str): Battery serial number
+- `status` (str): Battery status, when included in inverter responses
+- `soc` (float): Battery state of charge percentage
+- `ahrtg` (float): Rated amp-hours, when included in inverter responses
+- `wh` (float): Battery energy capacity in watt-hours, when included in inverter responses
+- `ohk` (int): `OHK` value from the battery endpoint
+- `a_bat` (float): Battery current
+- `a_bat_inv` (float): Inverter-side battery current
+- `achamax` (float): Maximum charge current
+- `adischamax` (float): Maximum discharge current
+- `battery_model` (str): Battery model code
+- `gateway_model` (str): Gateway model
+- `gsn` (str): Gateway serial number
+- `gsn_version` (str): Gateway software version
+- `huayu` (int): Huayu flag/value
+- `inv_sn` (str): Inverter serial number
+- `manufacturer` (str): Battery manufacturer
+- `model` (str): Battery model name
+- `mosstate` (int): MOS state
+- `ncyc` (int): Cycle count
+- `pid` (str): Plant ID
+- `plant_name` (str): Plant name
+- `single_hp_bat_sns` (list[str] | None): Single high-power battery serial numbers, if reported
+- `spn` (str): SPN identifier
+- `st` (int): Battery state code
+- `software_version` (str): Battery software version
+- `upgrade_state` (int): Upgrade state code
+- `v_bat` (float): Battery voltage
+- `v_bat_inv` (float): Inverter-side battery voltage
 
 ## PlantMonitorData
 
@@ -204,7 +257,7 @@ Data class containing real-time monitoring data for a specific plant.
 - `total_tree` (float): Equivalent trees planted
 - `total_co2` (float): Total CO2 savings in kg
 - `total_diesel` (float): Equivalent diesel saved in litres
-- `percent` (int): Performance percentage
+- `percent` (float): Performance percentage
 - `meter_power` (float): Grid power in watts
 - `power_load` (float): Load power in watts
 - `w_cha` (float): Charging power in watts

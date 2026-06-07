@@ -9,7 +9,14 @@ from typing import Any, cast
 import aiohttp
 
 from .exceptions import AuthenticationError, RateLimitError, RequestError
-from .models import AdminInfo, InverterData, OverviewData, PlantData, PlantMonitorData
+from .models import (
+    AdminInfo,
+    BatteryData,
+    InverterData,
+    OverviewData,
+    PlantData,
+    PlantMonitorData,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +44,8 @@ class HyponCloud:
                 one will be created.
             timeout: Request timeout in seconds. Defaults to 10.
             retries: Number of retry attempts for API requests. Defaults to 3.
-            debug: Enable debug mode to print raw HTTP responses. Defaults to False.
+            debug: Enable debug mode to print HTTP responses with auth tokens
+                redacted. Defaults to False.
         """
         self.base_url = "https://api.hypon.cloud/v2"
         self.token_validity = 3600
@@ -85,6 +93,8 @@ class HyponCloud:
 
         url = f"{self.base_url}/login"
         data = {"username": self._username, "password": self._password, "oem": self._oem}
+        # Never log ``data`` here, it contains the credentials.
+        _LOGGER.debug("Requesting login: POST %s", url)
 
         try:
             async with self._session.post(
@@ -120,9 +130,25 @@ class HyponCloud:
             print(f"Status: {response.status}")
             print(f"Headers: {dict(response.headers)}")
             raw_text = await response.text()
-            print(f"Response: {raw_text}")
-            return cast(dict, json.loads(raw_text))
+            result = json.loads(raw_text)
+            print(f"Response: {json.dumps(self._redact_debug_response(result))}")
+            return cast(dict, result)
         return cast(dict, await response.json())
+
+    def _redact_debug_response(self, result: Any) -> Any:
+        """Return a debug-safe copy of a response payload."""
+        if not isinstance(result, dict):
+            return result
+
+        data = result.get("data")
+        if not isinstance(data, dict) or "token" not in data:
+            return result
+
+        redacted_result = result.copy()
+        redacted_data = data.copy()
+        redacted_data["token"] = "[redacted]"
+        redacted_result["data"] = redacted_data
+        return redacted_result
 
     async def _request(
         self, url: str, endpoint_name: str, retries: int | None = None
@@ -146,10 +172,17 @@ class HyponCloud:
         assert self._session is not None  # connect() ensures session exists
 
         headers = {"authorization": f"Bearer {self._token}"}
+        # Never log ``headers`` here, they contain the bearer token.
+        _LOGGER.debug("Requesting %s: GET %s", endpoint_name, url)
         try:
             async with self._session.get(
                 url, headers=headers, timeout=self.timeout
             ) as response:
+                _LOGGER.debug(
+                    "Received response for %s: HTTP %s",
+                    endpoint_name,
+                    response.status,
+                )
                 if response.status == 429:
                     if retries > 0:
                         await asyncio.sleep(10)
@@ -218,9 +251,7 @@ class HyponCloud:
         total_pages = 1
 
         while page <= total_pages:
-            url = (
-                f"{self.base_url}/plant/list2" f"?page={page}&page_size=10&refresh=true"
-            )
+            url = f"{self.base_url}/plant/list2?page={page}&page_size=10&refresh=true"
             try:
                 result = await self._request(url, "plant list", retries)
                 if "totalPage" in result:
@@ -276,6 +307,49 @@ class HyponCloud:
                 return []
 
         return all_inverters
+
+    async def get_batteries(
+        self, plant_id: str, retries: int | None = None
+    ) -> list[BatteryData]:
+        """Get all plant-level batteries for a specific plant.
+
+        This method automatically fetches all pages of batteries. Inverter
+        responses may also include an embedded battery snapshot.
+
+        Args:
+            plant_id: The plant ID to get batteries for.
+            retries: Number of retry attempts if request fails. If None,
+                uses the client's default retry setting.
+
+        Returns:
+            List of all BatteryData objects across all pages.
+
+        Raises:
+            AuthenticationError: If authentication fails.
+            ConnectionError: If connection to API fails.
+        """
+        retries = retries if retries is not None else self.retries
+        all_batteries: list[BatteryData] = []
+        page = 1
+        total_pages = 1
+
+        while page <= total_pages:
+            url = f"{self.base_url}/plant/{plant_id}/battery?page={page}&page_size=10"
+            try:
+                result = await self._request(url, "battery list", retries)
+                if "totalPage" in result:
+                    total_pages = result["totalPage"]
+                all_batteries.extend(
+                    BatteryData.from_dict(item) for item in result["data"]
+                )
+                page += 1
+            except KeyError as e:
+                _LOGGER.error("Error parsing battery list data: %s", e)
+                if retries > 0:
+                    return await self.get_batteries(plant_id, retries - 1)
+                return []
+
+        return all_batteries
 
     async def get_monitor(
         self, plant_id: str, retries: int | None = None

@@ -1,7 +1,9 @@
 """Example usage of the hyponcloud library."""
 
 import asyncio
+import os
 import sys
+from pathlib import Path
 
 from hyponcloud import (
     AuthenticationError,
@@ -10,20 +12,54 @@ from hyponcloud import (
     RequestError,
 )
 
+ENV_FILE = Path(__file__).with_name(".env")
+
+
+def load_env_file(path: Path) -> None:
+    """Load simple KEY=VALUE entries from a .env file if it exists."""
+    if not path.is_file():
+        return
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key.startswith("export "):
+            key = key.removeprefix("export ").strip()
+        if not key:
+            continue
+
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+
+        os.environ.setdefault(key, value)
+
+
+def get_credentials() -> tuple[str, str]:
+    """Get credentials from CLI args, environment variables, or .env."""
+    load_env_file(ENV_FILE)
+
+    if len(sys.argv) == 3:
+        return sys.argv[1], sys.argv[2]
+
+    username = os.environ.get("HYPONCLOUD_USERNAME")
+    password = os.environ.get("HYPONCLOUD_PASSWORD")
+    if len(sys.argv) == 1 and username and password:
+        return username, password
+
+    print("Usage: python example.py <username> <password>")
+    print("Or set HYPONCLOUD_USERNAME and HYPONCLOUD_PASSWORD in the environment")
+    print(f"Or add them to {ENV_FILE.name} next to this script")
+    sys.exit(1)
+
 
 async def main() -> None:
     """Main example function."""
-    # Replace with your actual credentials
-    username = "your_username"
-    password = "your_password"
-
-    if len(sys.argv) == 3:
-        username = sys.argv[1]
-        password = sys.argv[2]
-    elif username == "your_username":
-        print("Usage: python example.py <username> <password>")
-        print("Or edit the script to add your credentials")
-        sys.exit(1)
+    username, password = get_credentials()
 
     try:
         # Create client using context manager with debug mode enabled
@@ -68,10 +104,10 @@ async def main() -> None:
             if plants:
                 # Table header
                 print(
-                    f"{'Name':<20} {'Location':<25} {'Status':<10} "
+                    f"{'Name':<20} {'Location':<25} {'Status':<10} {'Type':<12} "
                     f"{'Power':<15} {'Today':<10} {'Total':<10}"
                 )
-                print("-" * 100)
+                print("-" * 112)
                 # Table rows
                 for plant in plants:
                     location = f"{plant.city}, {plant.country}"
@@ -80,16 +116,21 @@ async def main() -> None:
                         f"{plant.plant_name:<20} "
                         f"{location:<25} "
                         f"{plant.status:<10} "
+                        f"{plant.plant_type:<12} "
                         f"{power_str:<15} "
                         f"{plant.e_today:<10.2f} "
                         f"{plant.e_total:<10.2f}"
                     )
 
-            # Get inverters for the first plant (if available)
-            if plants:
-                first_plant = plants[0]
-                print(f"\nFetching inverters for plant: {first_plant.plant_name}...")
-                inverters = await client.get_inverters(first_plant.plant_id)
+            # Get inverters, batteries, and monitor data for each plant
+            for plant in plants:
+                print(f"\n{'#' * 60}")
+                print(f"# Plant: {plant.plant_name} (ID: {plant.plant_id})")
+                print(f"{'#' * 60}")
+
+                # Inverters for this plant
+                print(f"\nFetching inverters for plant: {plant.plant_name}...")
+                inverters = await client.get_inverters(plant.plant_id)
                 print(f"\n=== Inverters ({len(inverters)}) ===")
                 if inverters:
                     # Table header
@@ -110,11 +151,32 @@ async def main() -> None:
                             f"{inverter.software_version:<12}"
                         )
 
-            # Get monitor data for the first plant (if available)
-            if plants:
-                first_plant = plants[0]
-                print(f"\nFetching monitor data for plant: {first_plant.plant_name}...")
-                monitor = await client.get_monitor(first_plant.plant_id)
+                # Batteries for this plant
+                print(f"\nFetching batteries for plant: {plant.plant_name}...")
+                batteries = await client.get_batteries(plant.plant_id)
+                print(f"\n=== Batteries ({len(batteries)}) ===")
+                if batteries:
+                    # Table header
+                    print(
+                        f"{'Serial Number':<20} {'Manufacturer':<15} {'SOC':<8} "
+                        f"{'Voltage':<10} {'Current':<10} {'Cycles':<8} {'SW Ver':<14}"
+                    )
+                    print("-" * 92)
+                    # Table rows
+                    for battery in batteries:
+                        print(
+                            f"{battery.sn:<20} "
+                            f"{battery.manufacturer:<15} "
+                            f"{battery.soc:<8g} "
+                            f"{battery.v_bat:<10g} "
+                            f"{battery.a_bat_inv:<10g} "
+                            f"{battery.ncyc:<8} "
+                            f"{battery.software_version:<14}"
+                        )
+
+                # Monitor data for this plant
+                print(f"\nFetching monitor data for plant: {plant.plant_name}...")
+                monitor = await client.get_monitor(plant.plant_id)
                 print("\n=== Plant Monitor ===")
                 print(f"{'Field':<25} {'Value':<30}")
                 print("-" * 55)
@@ -125,8 +187,9 @@ async def main() -> None:
                 print(f"{'PV Power':<25} {monitor.power_pv} W")
                 print(f"{'Load Power':<25} {monitor.power_load} W")
                 print(f"{'Grid Power':<25} {monitor.meter_power} W")
+                print(f"{'Battery Discharge':<25} {monitor.w_cha} W")
                 print(f"{'Battery SOC':<25} {monitor.soc}%")
-                print(f"{'Performance':<25} {monitor.percent}%")
+                print(f"{'Performance':<25} {monitor.percent:g}%")
                 print(f"{'CO2 Saved':<25} {monitor.total_co2} kg")
                 print(f"{'Trees Equivalent':<25} {monitor.total_tree}")
                 print(f"{'Diesel Saved':<25} {monitor.total_diesel} L")

@@ -1,5 +1,6 @@
 """Tests for HyponCloud client."""
 
+import logging
 from time import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,6 +11,7 @@ from aiohttp import ClientSession
 from hyponcloud import (
     AdminInfo,
     AuthenticationError,
+    BatteryData,
     HyponCloud,
     InverterData,
     OverviewData,
@@ -875,6 +877,14 @@ async def test_get_inverters_success() -> None:
             "e_total": 100.0,
             "plant_id": "123",
             "gateway": {"time": "2026-01-02T16:52:06+01:00"},
+            "battery": {
+                "time": "2026-06-06T06:58:18+01:00",
+                "sn": "J60080A224800079",
+                "status": "",
+                "soc": "97",
+                "ahrtg": 291,
+                "wh": 13968,
+            },
             "port": [{"port": 1}],
         }
     ]
@@ -907,6 +917,10 @@ async def test_get_inverters_success() -> None:
     assert result[0].plant_name == "Test Plant"
     assert result[0].sn == "P16280A023456789"
     assert result[0].power == 1000
+    assert isinstance(result[0].battery, BatteryData)
+    assert result[0].battery.soc == 97.0
+    assert result[0].battery.ahrtg == 291.0
+    assert result[0].battery.wh == 13968.0
 
 
 @pytest.mark.asyncio
@@ -1003,6 +1017,144 @@ def _make_auth_mock() -> AsyncMock:
     return mock_session
 
 
+# ---------------------------------------------------------------------------
+# get_batteries tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_batteries_success() -> None:
+    """Test successful get_batteries."""
+    battery_data = [
+        {
+            "OHK": 0,
+            "a_bat": 0,
+            "a_bat_inv": 2.2,
+            "achamax": 0,
+            "adischamax": 300,
+            "battery_model": "12",
+            "gateway_model": "HED-WF",
+            "gsn": "E009901124403943",
+            "gsnversion": "V1.0.0.23",
+            "huayu": 0,
+            "inv_sn": "J60080A224800079",
+            "manufacturer": "DYNESS-L",
+            "model": "",
+            "mosstate": 0,
+            "ncyc": 3,
+            "pid": "1945606741906923520",
+            "plant_name": "",
+            "singleHpBatSns": None,
+            "sn": "J60080A224800079",
+            "soc": 100,
+            "spn": "H910-32200-40",
+            "st": 2,
+            "sversion": "V14.236.14.236",
+            "time": "2026-06-06T09:21:27+01:00",
+            "upgrade_state": 10,
+            "v_bat": 53.7,
+            "v_bat_inv": 53.2,
+        }
+    ]
+
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                return_value=AsyncMock(
+                    status=200,
+                    json=AsyncMock(
+                        return_value={
+                            "data": battery_data,
+                            "totalPage": 1,
+                            "totalCount": 1,
+                        }
+                    ),
+                )
+            )
+        )
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    result = await client.get_batteries("1945606741906923520")
+
+    assert len(result) == 1
+    assert isinstance(result[0], BatteryData)
+    assert result[0].ohk == 0
+    assert result[0].sn == "J60080A224800079"
+    assert result[0].inv_sn == "J60080A224800079"
+    assert result[0].manufacturer == "DYNESS-L"
+    assert result[0].soc == 100.0
+    assert result[0].a_bat_inv == 2.2
+    assert result[0].v_bat == 53.7
+    assert result[0].gsn_version == "V1.0.0.23"
+    assert result[0].software_version == "V14.236.14.236"
+    assert result[0].single_hp_bat_sns is None
+    assert mock_session.get.call_args.args[0] == (
+        "https://api.hypon.cloud/v2/plant/1945606741906923520/"
+        "battery?page=1&page_size=10"
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_batteries_multi_page() -> None:
+    """Test get_batteries fetches all pages when totalPage > 1."""
+    page1_data = [{"sn": "BAT_PAGE1", "soc": 80}]
+    page2_data = [{"sn": "BAT_PAGE2", "soc": 90}]
+
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        side_effect=[
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(
+                        status=200,
+                        json=AsyncMock(
+                            return_value={"data": page1_data, "totalPage": 2}
+                        ),
+                    )
+                )
+            ),
+            AsyncMock(
+                __aenter__=AsyncMock(
+                    return_value=AsyncMock(
+                        status=200,
+                        json=AsyncMock(
+                            return_value={"data": page2_data, "totalPage": 2}
+                        ),
+                    )
+                )
+            ),
+        ]
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    result = await client.get_batteries("plant_123")
+
+    assert len(result) == 2
+    assert result[0].sn == "BAT_PAGE1"
+    assert result[1].sn == "BAT_PAGE2"
+    assert mock_session.get.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_batteries_parse_error_exhausted() -> None:
+    """Test get_batteries with parse error and exhausted retries."""
+    mock_session = _make_auth_mock()
+    mock_session.get = MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                return_value=AsyncMock(status=200, json=AsyncMock(return_value={}))
+            )
+        )
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    result = await client.get_batteries("plant_123")
+
+    assert result == []
+
+
 @pytest.mark.asyncio
 async def test_get_monitor_success() -> None:
     """Test successful get_monitor."""
@@ -1018,7 +1170,7 @@ async def test_get_monitor_success() -> None:
         "total_tree": 0.5,
         "total_co2": 10.0,
         "total_diesel": 40.0,
-        "percent": 80,
+        "percent": 80.5,
         "meter_power": 0.0,
         "power_load": 500.0,
         "w_cha": 0.0,
@@ -1048,6 +1200,7 @@ async def test_get_monitor_success() -> None:
     assert result.e_today == 5.0
     assert result.power_pv == 500.0
     assert result.soc == 60.0
+    assert result.percent == 80.5
 
 
 @pytest.mark.asyncio
@@ -1106,7 +1259,7 @@ async def test_get_monitor_parse_error_exhausted() -> None:
 
 
 @pytest.mark.asyncio
-async def test_connect_debug_mode() -> None:
+async def test_connect_debug_mode(capsys: pytest.CaptureFixture[str]) -> None:
     """Test connect() with debug=True exercises the text/json.loads path."""
     response_body = '{"data": {"token": "debug_token"}}'
 
@@ -1125,6 +1278,9 @@ async def test_connect_debug_mode() -> None:
 
     mock_response.text.assert_awaited_once()
     assert client._token == "debug_token"
+    output = capsys.readouterr().out
+    assert "debug_token" not in output
+    assert '"token": "[redacted]"' in output
 
 
 @pytest.mark.asyncio
@@ -1391,3 +1547,39 @@ async def test_get_list_page2_failure() -> None:
         client = HyponCloud("test_user", "test_pass", session=mock_session)
         with pytest.raises(RequestError, match="Failed to get plant list"):
             await client.get_list()
+
+
+@pytest.mark.asyncio
+async def test_request_logs_at_debug(caplog: pytest.LogCaptureFixture) -> None:
+    """Requests and responses are logged at debug level without secrets."""
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value={"data": {"power": 1}})
+
+    mock_session = AsyncMock(spec=ClientSession)
+    mock_session.post = MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                return_value=AsyncMock(
+                    status=200,
+                    json=AsyncMock(return_value={"data": {"token": "test_token"}}),
+                )
+            )
+        )
+    )
+    mock_session.get = MagicMock(
+        return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_response))
+    )
+
+    client = HyponCloud("test_user", "test_pass", session=mock_session)
+    with caplog.at_level(logging.DEBUG, logger="hyponcloud.client"):
+        await client.get_overview()
+
+    # The login and the data request are both logged.
+    assert "Requesting login: POST" in caplog.text
+    assert "Requesting plant overview: GET" in caplog.text
+    assert "/plant/overview" in caplog.text
+    assert "Received response for plant overview: HTTP 200" in caplog.text
+    # Credentials and the bearer token must never be logged.
+    assert "test_pass" not in caplog.text
+    assert "test_token" not in caplog.text
